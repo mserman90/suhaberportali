@@ -283,7 +283,9 @@ def generate_turkish_editorial_summary(title_tr: str, category: str, source_feed
     src = source_feed if source_feed else "bilimsel araştırma kaynakları"
     src_clean = re.sub(r'\b(Publication:\s*|Journal of\s*)', '', src, flags=re.IGNORECASE).strip()
     
-    if category == "Tarımsal Sulama":
+    if "🎓" in src or category == "Akademik Yayınlar" or any(p in src.lower() for p in ["sciencedirect", "mdpi", "springer", "wiley", "dergipark", "frontiers", "taylor & francis"]):
+        return f"{title_tr}. Bu hakemli bilimsel araştırma; su yönetimi, hidrolojik modelleme ve sürdürülebilir kaynak yönetimi alanındaki yeni yöntem ve bulguları detaylandırmaktadır. Tam metin ve bilimsel metodoloji {src_clean} üzerinden incelenebilir."
+    elif category == "Tarımsal Sulama":
         return f"{title_tr}. Bu bilimsel araştırma; tarımsal sulama verimliliği, su tasarruflu sulama sistemleri ve mahsul verimi üzerindeki etkileri kapsamlı saha ve modelleme analizleriyle incelemektedir. Detaylar {src_clean} bünyesinde yayımlanmıştır."
     elif category == "Su Teknolojileri":
         return f"{title_tr}. Çalışma; su dağıtım şebekelerinde sızıntı tespiti, yapay zeka ve sensör algoritmaları, atık su arıtımı ve ileri su arıtma teknolojilerini konu almaktadır. Bulgular {src_clean} bünyesinde yer almaktadır."
@@ -384,7 +386,7 @@ def batch_translate_articles(items: List[Dict]) -> List[Dict]:
 
         # 2. Categorization
         category = it.get("category_tr")
-        if not category or category not in ["Türkiye", "Tarımsal Sulama", "İklim & Kuraklık", "Su Politikaları", "Su Teknolojileri", "Su Kaynakları"]:
+        if not category or category not in ["Türkiye", "Tarımsal Sulama", "İklim & Kuraklık", "Su Politikaları", "Su Teknolojileri", "Su Kaynakları", "Akademik Yayınlar"]:
             category = categorize_article(title_orig + " " + title_tr, desc)
 
         # 3. Real narrative extraction & translation

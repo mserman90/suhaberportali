@@ -338,3 +338,153 @@ def scrape_turkey_water_news(limit: int = 25) -> List[Dict[str, Any]]:
         logger.warning("Turkey water news scrape failed: %s", e)
 
     return items
+
+
+def clean_academic_publication_title(raw_title: str) -> Tuple[str, str]:
+    """
+    Cleans publication title by stripping academic publisher suffixes and returns (clean_title, publisher).
+    """
+    title = raw_title.strip()
+    publisher = ""
+    patterns = [
+        r'\s*[-|–—]\s*(ScienceDirect\.com|ScienceDirect|MDPI|Springer Nature Link|Springer Nature|Springer|Nature|Wiley Online Library|Wiley & Sons|Wiley|Frontiers|Frontiers in Water|Frontiers for Young Minds|Taylor & Francis Online|Taylor & Francis|DergiPark|Oxford Academic|IWA Publishing|PLOS ONE|ResearchGate)\s*$',
+        r'\s*[-|–—]\s*(acikerisim\.[a-z0-9.]+|avesis\.[a-z0-9.]+|[\w.]+\.edu\.tr)\s*$'
+    ]
+    for p in patterns:
+        m = re.search(p, title, re.IGNORECASE)
+        if m:
+            publisher = m.group(1).strip()
+            title = title[:m.start()].strip()
+            break
+
+    if not publisher and " - " in title:
+        parts = title.rsplit(" - ", 1)
+        title = parts[0].strip()
+        publisher = parts[1].strip()
+
+    return title, publisher
+
+
+def scrape_academic_water_publications(limit_per_query: int = 12, max_total: int = 40) -> List[Dict[str, Any]]:
+    """
+    Scrapes newly published academic publications and peer-reviewed research papers
+    on water management using Google Dorking operators via Google News RSS search.
+    Targets ScienceDirect (Elsevier), MDPI Water, Springer Nature, Wiley, Frontiers,
+    Taylor & Francis, and Turkish peer-reviewed academic journals (DergiPark, TÜBİTAK).
+    """
+    import urllib.parse
+    import xml.etree.ElementTree as ET
+
+    dork_queries = [
+        # 1. ScienceDirect / Elsevier - Water Management peer-reviewed articles
+        ('site:sciencedirect.com/science/article "water management" when:90d', 'en-US', 'US', 'US:en', 'ScienceDirect (Elsevier)'),
+        # 2. MDPI Water Journal
+        ('(site:mdpi.com/2073-4441 OR site:mdpi.com/journal/water) "management" when:90d', 'en-US', 'US', 'US:en', 'MDPI Water'),
+        # 3. Springer Nature - Water Resources Management & Hydrology
+        ('site:link.springer.com/article ("water management" OR "water resources management") when:90d', 'en-US', 'US', 'US:en', 'Springer Nature'),
+        # 4. Wiley Online Library & Taylor & Francis Water Papers
+        ('(site:onlinelibrary.wiley.com/doi OR site:tandfonline.com/doi) "water management" when:90d', 'en-US', 'US', 'US:en', 'Wiley / T&F'),
+        # 5. Frontiers in Water - Open Access Papers
+        ('site:frontiersin.org/articles ("water management" OR "water resources") when:90d', 'en-US', 'US', 'US:en', 'Frontiers in Water'),
+        # 6. DergiPark & Turkish Academic Water Management Papers (TÜBİTAK ULAKBİM & Turkish Universities)
+        ('(site:dergipark.org.tr/tr/pub/*/article OR site:dergipark.org.tr/en/pub/*/article OR site:dergipark.org.tr "su yönetimi") when:120d', 'tr', 'TR', 'TR:tr', 'DergiPark (TÜBİTAK ULAKBİM)'),
+    ]
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/128.0.0.0 Safari/537.36"
+        )
+    }
+
+    items: List[Dict[str, Any]] = []
+    seen_titles = set()
+    now_dt = datetime.now(timezone.utc)
+
+    for query, hl, gl, ceid, default_pub in dork_queries:
+        if len(items) >= max_total:
+            break
+
+        url = f"https://news.google.com/rss/search?q={urllib.parse.quote(query)}&hl={hl}&gl={gl}&ceid={ceid}"
+        try:
+            resp = requests.get(url, headers=headers, timeout=12)
+            if resp.status_code != 200:
+                continue
+
+            root = ET.fromstring(resp.text)
+            query_count = 0
+            for it in root.findall(".//item"):
+                if query_count >= limit_per_query or len(items) >= max_total:
+                    break
+
+                raw_title = it.find("title").text if it.find("title") is not None else ""
+                link = it.find("link").text if it.find("link") is not None else ""
+                pub_str = it.find("pubDate").text if it.find("pubDate") is not None else ""
+                guid = it.find("guid").text if it.find("guid") is not None else link
+
+                src_elem = it.find("source")
+                src_text = src_elem.text if src_elem is not None else default_pub
+
+                clean_title, extracted_pub = clean_academic_publication_title(raw_title)
+                publisher = extracted_pub or src_text or default_pub
+
+                # Exclude administrative pages, profiles, and author guidelines
+                t_lower = clean_title.lower()
+                if any(bad in t_lower for bad in [
+                    "profil -", "user profile", "editorial board", "author guidelines",
+                    "aims and scope", "call for papers", "instructions for authors",
+                    "privacy policy", "terms of use", "announcement", "duyuru"
+                ]):
+                    continue
+
+                if len(clean_title) < 18:
+                    continue
+
+                # Deduplicate by normalized key
+                norm_key = re.sub(r'[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ]', '', t_lower)
+                if norm_key in seen_titles:
+                    continue
+                seen_titles.add(norm_key)
+
+                # Parse publication date
+                pub_ts = int(now_dt.timestamp())
+                pub_rfc = email.utils.format_datetime(now_dt)
+                if pub_str:
+                    try:
+                        dt_parsed = email.utils.parsedate_to_datetime(pub_str)
+                        pub_ts = int(dt_parsed.timestamp())
+                        pub_rfc = email.utils.format_datetime(dt_parsed)
+                    except Exception:
+                        pass
+
+                desc_el = it.find("description")
+                raw_desc = desc_el.text if desc_el is not None else ""
+                clean_desc = BeautifulSoup(raw_desc, "html.parser").get_text(" ", strip=True) if raw_desc else clean_title
+
+                is_turkey_academic = bool("dergipark" in publisher.lower() or ".edu.tr" in publisher.lower() or "türkiye" in clean_title.lower() or "türkiye" in clean_desc.lower())
+
+                items.append({
+                    "guid": f"academic:{guid}",
+                    "title": clean_title,
+                    "title_tr": clean_title if is_turkey_academic else "",
+                    "link": link,
+                    "author": publisher,
+                    "source_feed": f"🎓 {publisher}",
+                    "description": clean_desc,
+                    "summary_tr": clean_desc if is_turkey_academic else "",
+                    "category_tr": "Su Kaynakları",
+                    "is_turkey": 1 if is_turkey_academic else 0,
+                    "is_academic": 1,
+                    "image_url": "",
+                    "pub_date": pub_rfc,
+                    "pub_date_ts": pub_ts,
+                    "raw_date_str": pub_str,
+                })
+                query_count += 1
+
+        except Exception as e:
+            logger.warning("Academic publication dork scrape failed for query [%s]: %s", query, e)
+
+    return items
+

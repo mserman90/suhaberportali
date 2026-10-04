@@ -108,6 +108,7 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
     ]
 
     CATEGORY_SLUGS = {
+        "Akademik Yayınlar": "akademik",
         "Tarımsal Sulama": "sulama",
         "Su Teknolojileri": "teknoloji",
         "Su Arıtma & Kalite": "teknoloji",
@@ -129,6 +130,7 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
         summary_tr = it.get("summary_tr") or "Detaylar ilgili bilimsel araştırma ve haber bülteninde yer almaktadır."
         source = it.get("source_feed") or it.get("author") or "Bilimsel Araştırma"
         is_turkey = bool(it.get("is_turkey") or it.get("category_tr") == "Türkiye" or "🇹🇷" in source)
+        is_academic = bool(it.get("is_academic") or it.get("guid", "").startswith("academic:") or "🎓" in source)
         cat_raw = it.get("category_tr")
         if not cat_raw or cat_raw == "Türkiye":
             cat_raw = categorize_article(title_tr, summary_tr)
@@ -146,7 +148,8 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             "date": it.get("pub_date", ""),
             "link": it.get("link", ""),
             "image": img,
-            "is_turkey": is_turkey
+            "is_turkey": is_turkey,
+            "is_academic": is_academic
         })
 
     json_portal_data = json.dumps(portal_data, ensure_ascii=False)
@@ -154,8 +157,15 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
     # Secondary headline cards
     secondary_html = ""
     for it in portal_data[1:4]:
-        badge_cls = "news-badge news-badge-turkey" if it.get("is_turkey") else "news-badge"
-        badge_lbl = f"🇹🇷 {html.escape(it['category'])}" if it.get("is_turkey") else html.escape(it['category'])
+        if it.get("is_turkey"):
+            badge_cls = "news-badge news-badge-turkey"
+            badge_lbl = f"🇹🇷 {html.escape(it['category'])}"
+        elif it.get("is_academic"):
+            badge_cls = "news-badge news-badge-academic"
+            badge_lbl = f"🎓 {html.escape(it['category'])}"
+        else:
+            badge_cls = "news-badge"
+            badge_lbl = html.escape(it['category'])
         secondary_html += f"""
         <div class="sub-headline-card" onclick="openArticleModal({it['id']})" data-slug="{it['slug']}">
             <div class="sub-headline-img" style="background-image: url('{html.escape(it['image'])}');">
@@ -174,12 +184,20 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
     for it in portal_data:
         is_top = it['id'] < 4
         display_style = ' style="display: none;"' if is_top else ''
-        search_corpus = clean_html_tags(f"{it['title_tr']} {it['title_en']} {it['summary_tr']} {it['category']}").lower()
-        badge_cls = "news-badge news-badge-turkey" if it.get("is_turkey") else "news-badge"
-        badge_lbl = f"🇹🇷 {html.escape(it['category'])}" if it.get("is_turkey") else html.escape(it['category'])
+        search_corpus = clean_html_tags(f"{it['title_tr']} {it['title_en']} {it['summary_tr']} {it['category']} {it['source']}").lower()
+        if it.get("is_turkey"):
+            badge_cls = "news-badge news-badge-turkey"
+            badge_lbl = f"🇹🇷 {html.escape(it['category'])}"
+        elif it.get("is_academic"):
+            badge_cls = "news-badge news-badge-academic"
+            badge_lbl = f"🎓 {html.escape(it['category'])}"
+        else:
+            badge_cls = "news-badge"
+            badge_lbl = html.escape(it['category'])
         is_tr_str = "true" if it.get("is_turkey") else "false"
+        is_acad_str = "true" if it.get("is_academic") else "false"
         grid_html += f"""
-        <article class="news-grid-card" data-slug="{it['slug']}" data-is-turkey="{is_tr_str}" data-category="{html.escape(it['category'])}" data-is-top="{'true' if is_top else 'false'}" data-search="{html.escape(search_corpus)}"{display_style}>
+        <article class="news-grid-card" data-slug="{it['slug']}" data-is-turkey="{is_tr_str}" data-is-academic="{is_acad_str}" data-category="{html.escape(it['category'])}" data-is-top="{'true' if is_top else 'false'}" data-search="{html.escape(search_corpus)}"{display_style}>
             <div class="card-img-wrap" style="background-image: url('{html.escape(it['image'])}');" onclick="openArticleModal({it['id']})">
                 <span class="{badge_cls}" onclick="event.stopPropagation(); filterCategory('{it['slug']}')">{badge_lbl}</span>
             </div>
@@ -1053,6 +1071,17 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             color: #ffffff !important;
             font-weight: 800 !important;
         }}
+        .news-badge-academic {{
+            background: #1e3a8a !important;
+            color: #ffffff !important;
+            font-weight: 800 !important;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            box-shadow: 0 1px 4px rgba(30, 58, 138, 0.4);
+        }}
+        [data-theme="dark"] .news-badge-academic {{
+            background: #2563eb !important;
+            color: #ffffff !important;
+        }}
         .news-date {{
             font-size: 11px;
             color: var(--ink-light);
@@ -1581,6 +1610,7 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
         <div class="nav-inner">
             <div class="category-pills" id="categoryPills">
                 <button type="button" class="cat-btn active" data-slug="all" onclick="filterCategory('all')">Tümü</button>
+                <button type="button" class="cat-btn" data-slug="akademik" onclick="filterCategory('akademik')">🎓 Akademik Yayınlar</button>
                 <button type="button" class="cat-btn" data-slug="sulama" onclick="filterCategory('sulama')">🌾 Tarımsal Sulama</button>
                 <button type="button" class="cat-btn" data-slug="teknoloji" onclick="filterCategory('teknoloji')">🔬 Su Teknolojileri</button>
                 <button type="button" class="cat-btn" data-slug="kaynak" onclick="filterCategory('kaynak')">💧 Su Kaynakları</button>
@@ -1754,8 +1784,16 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             const it = articlesData.find(a => a.id === id);
             if (!it) return;
 
-            document.getElementById('modalBadge').innerText = (it.is_turkey ? '🇹🇷 ' : '') + it.category;
-            document.getElementById('modalHeaderCategory').innerText = (it.is_turkey ? 'TÜRKİYE SU BÜLTENİ &bull; ' : '') + it.category.toUpperCase() + ' &bull; SU HABER BÜLTENİ';
+            if (it.is_academic) {{
+                document.getElementById('modalBadge').innerText = '🎓 ' + it.category;
+                document.getElementById('modalHeaderCategory').innerText = '🎓 HAKEMLİ AKADEMİK YAYIN &bull; ' + it.category.toUpperCase() + ' &bull; SU YÖNETİMİ';
+            }} else if (it.is_turkey) {{
+                document.getElementById('modalBadge').innerText = '🇹🇷 ' + it.category;
+                document.getElementById('modalHeaderCategory').innerText = 'TÜRKİYE SU BÜLTENİ &bull; ' + it.category.toUpperCase() + ' &bull; SU HABER BÜLTENİ';
+            }} else {{
+                document.getElementById('modalBadge').innerText = it.category;
+                document.getElementById('modalHeaderCategory').innerText = it.category.toUpperCase() + ' &bull; SU HABER BÜLTENİ';
+            }}
             document.getElementById('modalTitleTr').innerText = it.title_tr;
             const titleEnEl = document.getElementById('modalTitleEn');
             if (it.title_en && it.title_en !== it.title_tr) {{
@@ -1798,6 +1836,7 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
 
         const CATEGORY_TITLES = {{
             'all': '🌊 Son Bilimsel Araştırmalar &amp; Raporlar',
+            'akademik': '🎓 Yeni Yayınlanan Su Yönetimi Hakemli Akademik Makaleleri',
             'sulama': '🌾 Tarımsal Sulama Araştırmaları',
             'teknoloji': '🔬 Su Teknolojileri &amp; İnovasyon',
             'kaynak': '💧 Su Kaynakları &amp; Havza Yönetimi',
@@ -1845,6 +1884,38 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
                 if (titleEl) titleEl.innerHTML = CATEGORY_TITLES['all'];
                 if (countEl) countEl.innerHTML = `Toplam <strong>${{allCards.length}}</strong> makale`;
                 if (noResultsEl) noResultsEl.style.display = 'none';
+
+            }} else if (slug === 'akademik') {{
+                if (heroEl) heroEl.style.display = 'none';
+                if (subEl) subEl.style.display = 'none';
+
+                allCards.forEach(card => {{
+                    const isAcademic = card.getAttribute('data-is-academic') === 'true' || card.dataset.slug === 'akademik';
+                    if (isAcademic) {{
+                        card.style.display = '';
+                        visibleCount++;
+                    }} else {{
+                        card.style.display = 'none';
+                    }}
+                }});
+
+                if (titleEl) titleEl.innerHTML = CATEGORY_TITLES['akademik'];
+                if (countEl) countEl.innerHTML = `Kategoride <strong>${{visibleCount}}</strong> hakemli makale`;
+
+                if (visibleCount === 0) {{
+                    if (noResultsEl) {{
+                        document.getElementById('emptyTitle').innerText = 'Akademik su yönetimi yayınları taranıyor...';
+                        document.getElementById('emptyDesc').innerText = 'ScienceDirect, MDPI, Springer Nature, Wiley ve DergiPark akademik yayınları taranmaktadır.';
+                        noResultsEl.style.display = 'block';
+                    }}
+                }} else {{
+                    if (noResultsEl) noResultsEl.style.display = 'none';
+                }}
+
+                const target = document.getElementById('mainNewsSection');
+                if (target) {{
+                    target.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+                }}
 
             }} else {{
                 // Specific category chosen: hide hero and subheadlines

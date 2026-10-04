@@ -36,7 +36,7 @@ class Storage:
                     category_tr TEXT
                 )
             """)
-            for col in ["title_tr", "summary_tr", "category_tr", "is_turkey"]:
+            for col in ["title_tr", "summary_tr", "category_tr", "is_turkey", "is_academic"]:
                 try:
                     cursor.execute(f"ALTER TABLE items ADD COLUMN {col} TEXT")
                 except sqlite3.OperationalError:
@@ -65,7 +65,7 @@ class Storage:
             for it in items:
                 guid = it["guid"]
                 cursor.execute(
-                    "SELECT guid, pub_date, pub_date_ts, first_seen_ts, title_tr, summary_tr, category_tr, image_url, is_turkey FROM items WHERE guid = ?",
+                    "SELECT guid, pub_date, pub_date_ts, first_seen_ts, title_tr, summary_tr, category_tr, image_url, is_turkey, is_academic FROM items WHERE guid = ?",
                     (guid,)
                 )
                 existing = cursor.fetchone()
@@ -85,6 +85,11 @@ class Storage:
                     is_val = existing["is_turkey"]
                 is_turkey_val = 1 if (str(is_val).strip() in ["1", "True", "true"] or is_val == 1) else 0
 
+                is_acad = it.get("is_academic")
+                if is_acad is None and existing and "is_academic" in existing.keys():
+                    is_acad = existing["is_academic"]
+                is_academic_val = 1 if (str(is_acad).strip() in ["1", "True", "true"] or is_acad == 1) else 0
+
                 if existing:
                     cursor.execute("""
                         UPDATE items SET
@@ -98,7 +103,8 @@ class Storage:
                             title_tr = ?,
                             summary_tr = ?,
                             category_tr = ?,
-                            is_turkey = ?
+                            is_turkey = ?,
+                            is_academic = ?
                         WHERE guid = ?
                     """, (
                         it["title"],
@@ -112,6 +118,7 @@ class Storage:
                         summary_tr,
                         category_tr,
                         is_turkey_val,
+                        is_academic_val,
                         guid
                     ))
                 else:
@@ -127,8 +134,8 @@ class Storage:
                             guid, title, link, author, source_feed,
                             description, image_url, pub_date, pub_date_ts,
                             first_seen_ts, raw_date_str,
-                            title_tr, summary_tr, category_tr, is_turkey
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            title_tr, summary_tr, category_tr, is_turkey, is_academic
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         guid,
                         it["title"],
@@ -144,14 +151,15 @@ class Storage:
                         title_tr,
                         summary_tr,
                         category_tr,
-                        is_turkey_val
+                        is_turkey_val,
+                        is_academic_val
                     ))
 
             conn.commit()
 
         return new_count
 
-    def update_item_translation(self, guid: str, title_tr: str, summary_tr: str, category_tr: str, is_turkey: int = 0):
+    def update_item_translation(self, guid: str, title_tr: str, summary_tr: str, category_tr: str, is_turkey: int = 0, is_academic: int = 0):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -159,9 +167,10 @@ class Storage:
                     title_tr = ?,
                     summary_tr = ?,
                     category_tr = ?,
-                    is_turkey = ?
+                    is_turkey = ?,
+                    is_academic = ?
                 WHERE guid = ?
-            """, (title_tr, summary_tr, category_tr, int(is_turkey), guid))
+            """, (title_tr, summary_tr, category_tr, int(is_turkey), int(is_academic), guid))
             conn.commit()
 
     def update_item_image(self, guid: str, image_url: str):
@@ -181,7 +190,7 @@ class Storage:
                 SELECT guid, title, link, author, source_feed,
                        description, image_url, pub_date, pub_date_ts,
                        first_seen_ts, raw_date_str,
-                       title_tr, summary_tr, category_tr, is_turkey
+                       title_tr, summary_tr, category_tr, is_turkey, is_academic
                 FROM items
                 ORDER BY pub_date_ts DESC, first_seen_ts DESC
                 LIMIT ?
@@ -193,6 +202,8 @@ class Storage:
                 d = dict(r)
                 raw_tr = d.get("is_turkey")
                 d["is_turkey"] = 1 if (str(raw_tr).strip() in ["1", "True", "true"] or raw_tr == 1) else 0
+                raw_acad = d.get("is_academic")
+                d["is_academic"] = 1 if (str(raw_acad).strip() in ["1", "True", "true"] or raw_acad == 1) else 0
                 items_list.append(d)
                 seen_guids.add(d["guid"])
 
@@ -201,7 +212,7 @@ class Storage:
                 SELECT guid, title, link, author, source_feed,
                        description, image_url, pub_date, pub_date_ts,
                        first_seen_ts, raw_date_str,
-                       title_tr, summary_tr, category_tr, is_turkey
+                       title_tr, summary_tr, category_tr, is_turkey, is_academic
                 FROM items
                 WHERE is_turkey = 1 OR category_tr = 'Türkiye' OR guid LIKE 'tr_water:%'
                 ORDER BY pub_date_ts DESC, first_seen_ts DESC
@@ -211,6 +222,28 @@ class Storage:
                 d = dict(tr_r)
                 if d["guid"] not in seen_guids:
                     d["is_turkey"] = 1
+                    raw_acad = d.get("is_academic")
+                    d["is_academic"] = 1 if (str(raw_acad).strip() in ["1", "True", "true"] or raw_acad == 1) else 0
+                    items_list.append(d)
+                    seen_guids.add(d["guid"])
+
+            # Akademik su yönetimi yayınlarının her zaman portalda yer almasını garanti et
+            cursor.execute("""
+                SELECT guid, title, link, author, source_feed,
+                       description, image_url, pub_date, pub_date_ts,
+                       first_seen_ts, raw_date_str,
+                       title_tr, summary_tr, category_tr, is_turkey, is_academic
+                FROM items
+                WHERE is_academic = 1 OR guid LIKE 'academic:%' OR source_feed LIKE '%🎓%'
+                ORDER BY pub_date_ts DESC, first_seen_ts DESC
+                LIMIT 40
+            """)
+            for acad_r in cursor.fetchall():
+                d = dict(acad_r)
+                if d["guid"] not in seen_guids:
+                    d["is_academic"] = 1
+                    raw_tr = d.get("is_turkey")
+                    d["is_turkey"] = 1 if (str(raw_tr).strip() in ["1", "True", "true"] or raw_tr == 1) else 0
                     items_list.append(d)
                     seen_guids.add(d["guid"])
 

@@ -63,6 +63,14 @@ THEMATIC_IMAGES = {
         "https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?w=900&q=80",  # Dam spillway
         "https://images.unsplash.com/photo-1426604966848-d7adac402bff?w=900&q=80",  # Anatolian mountain river
         "https://images.unsplash.com/photo-1544717305-2782549b5136?w=900&q=80",  # Clear water droplet
+    ],
+    "Akademik Yayınlar": [
+        "https://images.unsplash.com/photo-1532094349884-543bc11b234d?w=900&q=80",  # Scientific laboratory chemistry
+        "https://images.unsplash.com/photo-1507668077129-56e32842fceb?w=900&q=80",  # Academic microscope research
+        "https://images.unsplash.com/photo-1518152006812-edab29b069ac?w=900&q=80",  # Hydrological digital models and data
+        "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=900&q=80",  # Remote sensing earth observation
+        "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?w=900&q=80",  # Water quality laboratory testing
+        "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=900&q=80",  # Environmental engineering testing
     ]
 }
 
@@ -129,7 +137,9 @@ def get_thematic_image(title: str, category: str, seed_index: int = 0) -> str:
     title_lower = (title or "").lower()
 
     # Sub-keyword refinement for precise visual matching
-    if category == "Türkiye" or re.search(r'\b(türkiye|turkey|türk|dsi|baraj|iski|aski|izsu|gap|anadolu|fırat|dicle|kızılırmak|meriç|gediz|menderes|sakarya|van gölü|tuz gölü|beyşehir|eğirdir)\b', title_lower):
+    if category == "Akademik Yayınlar" or re.search(r'\b(akademik|makale|hakemli|sciencedirect|springer|mdpi|wiley|dergipark|journal|paper|study|thesis|research)\b', title_lower):
+        category = "Akademik Yayınlar"
+    elif category == "Türkiye" or re.search(r'\b(türkiye|turkey|türk|dsi|baraj|iski|aski|izsu|gap|anadolu|fırat|dicle|kızılırmak|meriç|gediz|menderes|sakarya|van gölü|tuz gölü|beyşehir|eğirdir)\b', title_lower):
         category = "Türkiye"
     elif re.search(r'\b(damla|pivot|fıskiye|tarla|mahsul|hasat|sulama|sprinkler|drip|crop)\b', title_lower):
         category = "Tarımsal Sulama"
@@ -154,6 +164,8 @@ def resolve_article_image(item: Dict[str, Any], index: int = 0) -> str:
     link = (item.get("link") or "").strip()
     title = item.get("title_tr") or item.get("title") or ""
     category = item.get("category_tr") or "Su Kaynakları"
+    if item.get("is_academic"):
+        category = "Akademik Yayınlar"
 
     # 1. Check if raw image is an Inoreader camo proxy
     if raw_img:

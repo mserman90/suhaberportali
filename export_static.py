@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from app import config
 from app.storage import Storage
-from app.scraper import scrape_inoreader, scrape_turkey_water_news
+from app.scraper import scrape_inoreader, scrape_turkey_water_news, scrape_academic_water_publications
 from app.feed import generate_rss_2_xml, generate_atom_xml, generate_json_feed
 from app.translator import (
     batch_translate_articles,
@@ -46,9 +46,14 @@ def main():
     turkey_items = scrape_turkey_water_news(limit=25)
     print(f"[+] Çekilen güncel Türkiye su haberi sayısı: {len(turkey_items)}")
 
+    print("[*] Yeni yayınlanan su yönetimi akademik yayınları Google Dorking ile taranıyor...")
+    academic_items = scrape_academic_water_publications(limit_per_query=12, max_total=40)
+    print(f"[+] Çekilen güncel akademik yayın sayısı: {len(academic_items)}")
+
     storage = Storage(config.DB_PATH)
     storage.save_items(raw_items)
     storage.save_items(turkey_items)
+    storage.save_items(academic_items)
     storage.prune_items(config.MAX_STORED_ITEMS)
 
     # Retrieve all stored items
@@ -80,6 +85,10 @@ def main():
         desc = it.get("description") or ""
         full_text = title_tr + " " + it.get("title", "") + " " + desc + " " + source
 
+        # Check if article is an academic publication
+        is_academic = 1 if (it.get("is_academic") or it.get("guid", "").startswith("academic:") or "🎓" in source) else 0
+        it["is_academic"] = is_academic
+
         # Check if article genuinely relates to Turkey
         is_tr_scraped = bool(it.get("guid", "").startswith("tr_water:") or "🇹🇷" in source)
         is_tr_match = bool(TURKEY_PAT.search(full_text) and not FOREIGN_PAT.search(full_text))
@@ -103,7 +112,8 @@ def main():
             title_tr,
             summary_tr,
             category_tr,
-            is_turkey
+            is_turkey,
+            is_academic
         )
         resolved_img = resolve_article_image(it, idx)
         it["image_url"] = resolved_img
