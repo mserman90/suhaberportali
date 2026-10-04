@@ -173,8 +173,11 @@ def main():
 
     # 4. Generate Daily Podcast & Podcast RSS Feed (podcast.xml)
     podcast_info = None
+    enable_podcast_env = os.getenv("ENABLE_PODCAST", "").strip().lower()
+    enable_podcast = enable_podcast_env in ("true", "1", "yes") if enable_podcast_env else True
+
     try:
-        podcast_info = generate_daily_podcast(items, dist_dir, public_url)
+        podcast_info = generate_daily_podcast(items, dist_dir, public_url, enable_generation=enable_podcast)
     except Exception as pe:
         print(f"[!] Podcast üretimi sırasında hata: {pe}")
 
@@ -183,13 +186,15 @@ def main():
     (dist_dir / "index.html").write_text(portal_html, encoding="utf-8")
     print(f"[+] Üretildi: {dist_dir / 'index.html'} ('Su Haber Bülteni' Modern Gazete Portalı & Podcast)")
 
-    # 6. Dispatch Daily Podcast to WhatsApp Group
-    if podcast_info and podcast_info.get("latest_episode"):
+    # 6. Dispatch Daily Podcast to WhatsApp Group (Yalnızca sabah bülteninde veya zorlandığında)
+    if enable_podcast and podcast_info and podcast_info.get("latest_episode"):
         try:
             from app.whatsapp import send_daily_podcast_to_whatsapp
             send_daily_podcast_to_whatsapp(podcast_info, items, public_url)
         except Exception as we:
             print(f"[!] WhatsApp paylaşımı sırasında hata: {we}")
+    elif not enable_podcast:
+        print("[*] Gün içi periyodik tarama: WhatsApp bülten gönderimi atlandı (Yalnızca sabah 10:00 bülteninde iletilir).")
 
     print("[*] Tüm gazete portalı, podcast ve yayın dosyaları başarıyla hazırlandı!")
 

@@ -10,6 +10,7 @@ Günlük Su ve Tarımsal Sulama Haberleri Podcast Üreticisi.
 import os
 import sys
 import json
+import shutil
 import asyncio
 import html
 import re
@@ -146,19 +147,32 @@ def generate_podcast_rss(
 </rss>
 """
 
-def generate_daily_podcast(items: List[Dict[str, Any]], dist_dir: Path, public_base_url: str) -> Dict[str, Any]:
+def generate_daily_podcast(
+    items: List[Dict[str, Any]],
+    dist_dir: Path,
+    public_base_url: str,
+    enable_generation: bool = True
+) -> Dict[str, Any]:
     """
-    Günlük podcast bölümünü üretir, dist/episodes içine MP3 olarak kaydeder
-    ve dist/podcast.xml dosyasını günceller.
+    Günlük podcast bölümünü yönetir.
+    Bölümleri data/episodes içinde kalıcı saklar, dist/episodes içine aktarır
+    ve yalnızca geçerli/mevcut bölümleri barındıran podcast.xml dosyasını üretir.
     """
     episodes_dir = dist_dir / "episodes"
     episodes_dir.mkdir(parents=True, exist_ok=True)
     
     data_dir = dist_dir.parent / "data"
-    data_dir.mkdir(parents=True, exist_ok=True)
+    data_episodes_dir = data_dir / "episodes"
+    data_episodes_dir.mkdir(parents=True, exist_ok=True)
     meta_path = data_dir / "podcast_episodes.json"
 
-    # Mevcut bölümleri yükle
+    # 1. data/episodes klasöründeki mevcut tüm bölümleri dist/episodes altına senkronize et
+    for cached_mp3 in data_episodes_dir.glob("*.mp3"):
+        target_mp3 = episodes_dir / cached_mp3.name
+        if not target_mp3.exists() or target_mp3.stat().st_size != cached_mp3.stat().st_size:
+            shutil.copy2(cached_mp3, target_mp3)
+
+    # 2. Mevcut bölümleri yükle
     episodes = []
     if meta_path.exists():
         try:
@@ -173,57 +187,85 @@ def generate_daily_podcast(items: List[Dict[str, Any]], dist_dir: Path, public_b
     rfc822_date = now.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
     filename_dated = f"podcast_{today_key}.mp3"
-    filepath_dated = episodes_dir / filename_dated
-    filepath_latest = episodes_dir / "podcast_latest.mp3"
+    filepath_data = data_episodes_dir / filename_dated
+    filepath_dist = episodes_dir / filename_dated
+    filepath_latest_data = data_episodes_dir / "podcast_latest.mp3"
+    filepath_latest_dist = episodes_dir / "podcast_latest.mp3"
 
-    print(f"[*] Günlük Podcast metni hazırlanıyor ({date_display})...")
-    script = build_podcast_script(items, date_display)
-
-    # Ses dosyasını sentezle (eğer bugün henüz üretilmediyse veya zorunluysa)
-    if not filepath_dated.exists() or filepath_dated.stat().st_size < 1000:
-        print(f"[*] Edge-TTS ile ses dosyası oluşturuluyor: {filename_dated}...")
+    # 3. Ses dosyasını kontrol et veya gerekiyorsa sentezle
+    if filepath_data.exists() and filepath_data.stat().st_size > 1000:
+        print(f"[*] Bugünün podcast ses dosyası önbellekte mevcut: {filename_dated} ({filepath_data.stat().st_size} bayt)")
+        shutil.copy2(filepath_data, filepath_dist)
+        shutil.copy2(filepath_data, filepath_latest_dist)
+        shutil.copy2(filepath_data, filepath_latest_data)
+    elif enable_generation:
+        print(f"[*] Günlük Podcast metni hazırlanıyor ({date_display})...")
+        script = build_podcast_script(items, date_display)
+        print(f"[*] Edge-TTS ile yeni ses dosyası oluşturuluyor: {filename_dated}...")
         try:
-            asyncio.run(synthesize_speech(script, filepath_dated))
-            # latest.mp3 olarak da kopyala
-            import shutil
-            shutil.copy2(filepath_dated, filepath_latest)
-            print(f"[+] Podcast ses dosyası başarıyla üretildi: {filepath_dated.stat().st_size} bayt")
+            asyncio.run(synthesize_speech(script, filepath_data))
+            if filepath_data.exists() and filepath_data.stat().st_size > 1000:
+                shutil.copy2(filepath_data, filepath_dist)
+                shutil.copy2(filepath_data, filepath_latest_dist)
+                shutil.copy2(filepath_data, filepath_latest_data)
+                print(f"[+] Podcast ses dosyası başarıyla üretildi: {filepath_data.stat().st_size} bayt")
         except Exception as e:
             print(f"[!] Podcast ses sentezi hatası: {e}")
-            # Hata durumunda mevcut latest varsa onu koru
     else:
-        print(f"[*] Bugünün podcasti zaten mevcut: {filename_dated}")
-        if not filepath_latest.exists() and filepath_dated.exists():
-            import shutil
-            shutil.copy2(filepath_dated, filepath_latest)
+        print("[*] Gün içi tarama: Yeni ses sentezi atlandı. Mevcut bölümler kullanılıyor.")
 
-    file_size = filepath_dated.stat().st_size if filepath_dated.exists() else 0
+    # 4. Meta veri kaydı (Bugünün dosyası başarıyla varsa güncelle)
+    file_size = filepath_data.stat().st_size if filepath_data.exists() else 0
     audio_public_url = f"{public_base_url}/episodes/{filename_dated}"
     latest_public_url = f"{public_base_url}/episodes/podcast_latest.mp3"
 
-    new_ep = {
-        "guid": f"suhaber-{today_key}",
-        "title": f"Su & Sulama Günlük Bülteni - {date_display}",
-        "description": f"{date_display} tarihli güncel su, tarımsal sulama ve hidroloji araştırmalarının sesli özeti.",
-        "filename": filename_dated,
-        "audio_url": audio_public_url,
-        "file_size_bytes": file_size,
-        "rfc822_date": rfc822_date,
-        "date_key": today_key,
-        "duration": "03:45"
-    }
+    new_ep = None
+    if file_size > 1000:
+        new_ep = {
+            "guid": f"suhaber-{today_key}",
+            "title": f"Su & Sulama Günlük Bülteni - {date_display}",
+            "description": f"{date_display} tarihli güncel su, tarımsal sulama ve hidroloji araştırmalarının sesli özeti.",
+            "filename": filename_dated,
+            "audio_url": audio_public_url,
+            "file_size_bytes": file_size,
+            "rfc822_date": rfc822_date,
+            "date_key": today_key,
+            "duration": "03:45"
+        }
+        # Listeyi güncelle (en yeni en başta)
+        episodes = [ep for ep in episodes if ep.get("date_key") != today_key]
+        episodes.insert(0, new_ep)
 
-    # Listeyi güncelle (en yeni en başta)
-    episodes = [ep for ep in episodes if ep.get("date_key") != today_key]
-    episodes.insert(0, new_ep)
+        # Meta veriyi kaydet (son 30 bölüm)
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(episodes[:30], f, ensure_ascii=False, indent=2)
 
-    # Meta veriyi kaydet
-    with open(meta_path, "w", encoding="utf-8") as f:
-        json.dump(episodes, f, ensure_ascii=False, indent=2)
+    # 5. Yalnızca dosya olarak fiziksel olarak mevcut olan bölümleri yayına al
+    playable_episodes = []
+    for ep in episodes:
+        fname = ep.get("filename")
+        if fname and (episodes_dir / fname).exists() and (episodes_dir / fname).stat().st_size > 1000:
+            playable_episodes.append(ep)
 
-    # Sabit podcast.xml üret
+    # Eğer oynatılabilir bölüm yok ama latest.mp3 varsa fallback oluştur
+    if not playable_episodes and filepath_latest_dist.exists() and filepath_latest_dist.stat().st_size > 1000:
+        fallback_ep = (episodes[0] if episodes else {
+            "guid": f"suhaber-{today_key}",
+            "title": f"Su & Sulama Günlük Bülteni - {date_display}",
+            "description": f"{date_display} tarihli güncel su ve sulama sesli özeti.",
+            "filename": "podcast_latest.mp3",
+            "audio_url": latest_public_url,
+            "file_size_bytes": filepath_latest_dist.stat().st_size,
+            "rfc822_date": rfc822_date,
+            "date_key": today_key,
+            "duration": "03:45"
+        })
+        playable_episodes.append(fallback_ep)
+
+    # 6. Sabit podcast.xml üret
+    feed_episodes = playable_episodes if playable_episodes else episodes
     podcast_xml = generate_podcast_rss(
-        episodes=episodes,
+        episodes=feed_episodes,
         feed_title="Su Haber Bülteni - Günlük Podcast",
         feed_description="Türkiye ve Dünya Su, Sulama ve Hidroloji Araştırmaları Günlük Sesli Bülteni",
         public_url=public_base_url,
@@ -231,10 +273,12 @@ def generate_daily_podcast(items: List[Dict[str, Any]], dist_dir: Path, public_b
     )
     podcast_xml_path = dist_dir / "podcast.xml"
     podcast_xml_path.write_text(podcast_xml, encoding="utf-8")
-    print(f"[+] Sabit Podcast RSS başarıyla üretildi: {podcast_xml_path}")
+    print(f"[+] Sabit Podcast RSS başarıyla üretildi: {podcast_xml_path} ({len(playable_episodes)} dinlenebilir bölüm)")
+
+    effective_latest = playable_episodes[0] if playable_episodes else (new_ep or (episodes[0] if episodes else None))
 
     return {
-        "latest_episode": new_ep,
+        "latest_episode": effective_latest,
         "latest_audio_url": latest_public_url,
         "podcast_rss_url": f"{public_base_url}/podcast.xml"
     }
