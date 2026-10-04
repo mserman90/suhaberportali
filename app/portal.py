@@ -108,7 +108,6 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
     ]
 
     CATEGORY_SLUGS = {
-        "Türkiye": "turkiye",
         "Tarımsal Sulama": "sulama",
         "Su Teknolojileri": "teknoloji",
         "Su Arıtma & Kalite": "teknoloji",
@@ -120,6 +119,7 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
     # JSON payload for modal dialogs
     import json
     from app.image_enricher import resolve_article_image
+    from app.translator import categorize_article
     portal_data = []
     for idx, it in enumerate(items_sorted):
         img = it.get("image_url")
@@ -129,8 +129,11 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
         summary_tr = it.get("summary_tr") or "Detaylar ilgili bilimsel araştırma ve haber bülteninde yer almaktadır."
         source = it.get("source_feed") or it.get("author") or "Bilimsel Araştırma"
         is_turkey = bool(it.get("is_turkey") or it.get("category_tr") == "Türkiye" or "🇹🇷" in source)
-        category = "Türkiye" if is_turkey else (it.get("category_tr") or "Su Kaynakları")
-        slug = "turkiye" if is_turkey else CATEGORY_SLUGS.get(category, "kaynak")
+        cat_raw = it.get("category_tr")
+        if not cat_raw or cat_raw == "Türkiye":
+            cat_raw = categorize_article(title_tr, summary_tr)
+        category = cat_raw or "Su Kaynakları"
+        slug = CATEGORY_SLUGS.get(category, "kaynak")
         portal_data.append({
             "id": idx,
             "title_tr": title_tr,
@@ -618,20 +621,6 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             color: var(--cat-btn-active-color) !important;
             border-color: var(--cat-btn-active-bg) !important;
             box-shadow: 0 2px 8px rgba(11, 37, 69, 0.3);
-        }}
-        .cat-btn-turkey {{
-            border-color: #ef4444;
-            color: #c1121f;
-            font-weight: 700;
-        }}
-        [data-theme="dark"] .cat-btn-turkey {{
-            color: #f87171;
-            border-color: #b91c1c;
-        }}
-        .cat-btn-turkey.active {{
-            background: #c1121f !important;
-            border-color: #c1121f !important;
-            color: #ffffff !important;
         }}
         .empty-results-box {{
             grid-column: 1 / -1;
@@ -1592,7 +1581,6 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
         <div class="nav-inner">
             <div class="category-pills" id="categoryPills">
                 <button type="button" class="cat-btn active" data-slug="all" onclick="filterCategory('all')">Tümü</button>
-                <button type="button" class="cat-btn cat-btn-turkey" data-slug="turkiye" onclick="filterCategory('turkiye')">🇹🇷 Türkiye</button>
                 <button type="button" class="cat-btn" data-slug="sulama" onclick="filterCategory('sulama')">🌾 Tarımsal Sulama</button>
                 <button type="button" class="cat-btn" data-slug="teknoloji" onclick="filterCategory('teknoloji')">🔬 Su Teknolojileri</button>
                 <button type="button" class="cat-btn" data-slug="kaynak" onclick="filterCategory('kaynak')">💧 Su Kaynakları</button>
@@ -1810,7 +1798,6 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
 
         const CATEGORY_TITLES = {{
             'all': '🌊 Son Bilimsel Araştırmalar &amp; Raporlar',
-            'turkiye': '🇹🇷 Türkiye Su Gündemi, Barajlar &amp; Sulama Projeleri',
             'sulama': '🌾 Tarımsal Sulama Araştırmaları',
             'teknoloji': '🔬 Su Teknolojileri &amp; İnovasyon',
             'kaynak': '💧 Su Kaynakları &amp; Havza Yönetimi',
@@ -1858,39 +1845,6 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
                 if (titleEl) titleEl.innerHTML = CATEGORY_TITLES['all'];
                 if (countEl) countEl.innerHTML = `Toplam <strong>${{allCards.length}}</strong> makale`;
                 if (noResultsEl) noResultsEl.style.display = 'none';
-
-            }} else if (slug === 'turkiye') {{
-                if (heroEl) heroEl.style.display = 'none';
-                if (subEl) subEl.style.display = 'none';
-
-                // Display all Turkey cards in grid
-                allCards.forEach(card => {{
-                    const isTurkey = card.getAttribute('data-is-turkey') === 'true' || card.dataset.slug === 'turkiye';
-                    if (isTurkey) {{
-                        card.style.display = '';
-                        visibleCount++;
-                    }} else {{
-                        card.style.display = 'none';
-                    }}
-                }});
-
-                if (titleEl) titleEl.innerHTML = CATEGORY_TITLES['turkiye'];
-                if (countEl) countEl.innerHTML = `Kategoride <strong>${{visibleCount}}</strong> makale`;
-
-                if (visibleCount === 0) {{
-                    if (noResultsEl) {{
-                        document.getElementById('emptyTitle').innerText = 'Türkiye su haberleri taranıyor...';
-                        document.getElementById('emptyDesc').innerText = 'DSİ ve yerel su idareleri bültenleri otomatik taranmaya devam etmektedir.';
-                        noResultsEl.style.display = 'block';
-                    }}
-                }} else {{
-                    if (noResultsEl) noResultsEl.style.display = 'none';
-                }}
-
-                const target = document.getElementById('mainNewsSection');
-                if (target) {{
-                    target.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
-                }}
 
             }} else {{
                 // Specific category chosen: hide hero and subheadlines
