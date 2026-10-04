@@ -69,8 +69,23 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
         </div>
         """
     
+    # Manşet Önceliği: Türkiye su haberlerini her zaman en başa (manşete) al
+    def is_tr_article(x):
+        return bool(
+            x.get("is_turkey") 
+            or x.get("category_tr") == "Türkiye" 
+            or (x.get("guid") or "").startswith("tr_water:") 
+            or "🇹🇷" in (x.get("source_feed") or "")
+        )
+
     # Sort items by date
-    items_sorted = sorted(items, key=lambda x: x.get("pub_date_ts", 0), reverse=True)
+    raw_sorted = sorted(items, key=lambda x: x.get("pub_date_ts", 0), reverse=True)
+    tr_sorted = [it for it in raw_sorted if is_tr_article(it)]
+    if tr_sorted:
+        turkey_hero = tr_sorted[0]
+        items_sorted = [turkey_hero] + [it for it in raw_sorted if it.get("guid") != turkey_hero.get("guid")]
+    else:
+        items_sorted = raw_sorted
     
     # Hero article (first item)
     hero_item = items_sorted[0] if items_sorted else None
@@ -132,7 +147,9 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
     turkey_section_html = ""
     if turkey_items:
         turkey_cards_html = ""
-        for it in turkey_items[:4]:
+        # Manşetteki ilk Türkiye haberi ile kartların mükerrer olmaması için sonraki haberleri göster
+        section_display_items = turkey_items[1:5] if (len(turkey_items) > 1 and portal_data[0].get("is_turkey")) else turkey_items[:4]
+        for it in section_display_items:
             t_date = html.escape(it['date'][:16] if it.get('date') else today_str)
             t_source = html.escape(it['source'][:28])
             turkey_cards_html += f"""
@@ -254,15 +271,18 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
     # Double track ensures seamless infinite loop with zero jump
     ticker_track_content = single_track_html + single_track_html
 
-    # Hero element
+    # Hero element (Günün Manşeti)
     hero_html = ""
     if portal_data:
         h = portal_data[0]
+        is_tr_hero = bool(h.get("is_turkey") or h.get("category") == "Türkiye")
+        badge_title = "⭐ GÜNÜN MANŞETİ &bull; 🇹🇷 TÜRKİYE SU GÜNDEMİ" if is_tr_hero else f"⭐ GÜNÜN MANŞETİ &bull; {html.escape(h['category'])}"
+        hero_hint = "🏛️ DSİ &bull; Yerel Yönetimler &bull; Ulusal Su &amp; Sulama Gündemi" if is_tr_hero else "ScienceDirect / ASCE / IWMI Akademik Veritabanı Kaynağı"
         hero_html = f"""
-        <section class="main-headline-banner" id="heroSection" onclick="openArticleModal(0)" data-slug="{h['slug']}">
+        <section class="main-headline-banner" id="heroSection" onclick="openArticleModal({h['id']})" data-slug="{h['slug']}">
             <div class="hero-image-col" style="background-image: url('{html.escape(h['image'])}');">
                 <div class="hero-image-overlay">
-                    <span class="hero-category-tag" onclick="event.stopPropagation(); filterCategory('{h['slug']}')">⭐ GÜNÜN MANŞETİ &bull; {html.escape(h['category'])}</span>
+                    <span class="hero-category-tag" onclick="event.stopPropagation(); filterCategory('{h['slug']}')">{badge_title}</span>
                 </div>
             </div>
             <div class="hero-content-col">
@@ -275,7 +295,7 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
                 <p class="hero-summary">{html.escape(h['summary_tr'][:320])}...</p>
                 <div class="hero-footer">
                     <button class="btn-hero-read">Tam Haberi ve Analizi Oku &rarr;</button>
-                    <span class="hero-hint">ScienceDirect / ASCE / IWMI Akademik Veritabanı Kaynağı</span>
+                    <span class="hero-hint">{hero_hint}</span>
                 </div>
             </div>
         </section>

@@ -188,11 +188,32 @@ class Storage:
             """, (limit,))
             rows = cursor.fetchall()
             items_list = []
+            seen_guids = set()
             for r in rows:
                 d = dict(r)
                 raw_tr = d.get("is_turkey")
                 d["is_turkey"] = 1 if (str(raw_tr).strip() in ["1", "True", "true"] or raw_tr == 1) else 0
                 items_list.append(d)
+                seen_guids.add(d["guid"])
+
+            # Türkiye haberlerinin her zaman portal ve manşet için çekilmesini garanti et
+            cursor.execute("""
+                SELECT guid, title, link, author, source_feed,
+                       description, image_url, pub_date, pub_date_ts,
+                       first_seen_ts, raw_date_str,
+                       title_tr, summary_tr, category_tr, is_turkey
+                FROM items
+                WHERE is_turkey = 1 OR category_tr = 'Türkiye' OR guid LIKE 'tr_water:%'
+                ORDER BY pub_date_ts DESC, first_seen_ts DESC
+                LIMIT 35
+            """)
+            for tr_r in cursor.fetchall():
+                d = dict(tr_r)
+                if d["guid"] not in seen_guids:
+                    d["is_turkey"] = 1
+                    items_list.append(d)
+                    seen_guids.add(d["guid"])
+
             return items_list
 
     def count_items(self) -> int:

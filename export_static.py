@@ -105,6 +105,21 @@ def main():
         storage.update_item_image(it["guid"], resolved_img)
     print(f"[+] {len(items)} haberin görselleri çözümlendi ve veritabanına işlendi.")
 
+    # Manşet Önceliği: Türkiye su haberleri HER ZAMAN en başta (manşette) yer alsın
+    def is_tr_article(x):
+        return bool(
+            x.get("is_turkey")
+            or x.get("category_tr") == "Türkiye"
+            or (x.get("guid") or "").startswith("tr_water:")
+            or "🇹🇷" in (x.get("source_feed") or "")
+        )
+
+    tr_articles = [it for it in items if is_tr_article(it)]
+    if tr_articles:
+        top_tr = tr_articles[0]
+        items = [top_tr] + [it for it in items if it.get("guid") != top_tr.get("guid")]
+        print(f"[+] Manşet Türkiye su haberi olarak belirlendi: {top_tr.get('title_tr')}")
+
     public_url = config.PUBLIC_BASE_URL or "https://mserman90.github.io/suhaberportali"
     rss_self = f"{public_url}/rss.xml"
     atom_self = f"{public_url}/atom.xml"
