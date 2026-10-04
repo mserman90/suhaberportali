@@ -70,17 +70,23 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
         """
     
     # Manşet Önceliği: Türkiye su haberlerini her zaman en başa (manşete) al
-    def is_tr_article(x):
-        return bool(
-            x.get("is_turkey") 
-            or x.get("category_tr") == "Türkiye" 
-            or (x.get("guid") or "").startswith("tr_water:") 
-            or "🇹🇷" in (x.get("source_feed") or "")
-        )
+    def turkey_headline_score(x):
+        guid = x.get("guid", "")
+        source = x.get("source_feed", "")
+        title = (x.get("title_tr", "") + " " + x.get("title", "")).lower()
+        score = 0
+        if guid.startswith("tr_water:") or "🇹🇷" in source:
+            score += 1000
+        elif bool(x.get("is_turkey") or x.get("category_tr") == "Türkiye"):
+            score += 100
+        if any(bad in title for bad in ["colorado", "utah", "california", "arizona", "nevada", "mississippi", "salt lake"]):
+            score -= 2000
+        return score
 
     # Sort items by date
     raw_sorted = sorted(items, key=lambda x: x.get("pub_date_ts", 0), reverse=True)
-    tr_sorted = [it for it in raw_sorted if is_tr_article(it)]
+    tr_candidates = [it for it in raw_sorted if turkey_headline_score(it) > 0]
+    tr_sorted = sorted(tr_candidates, key=lambda x: (turkey_headline_score(x), x.get("pub_date_ts", 0)), reverse=True)
     if tr_sorted:
         turkey_hero = tr_sorted[0]
         items_sorted = [turkey_hero] + [it for it in raw_sorted if it.get("guid") != turkey_hero.get("guid")]

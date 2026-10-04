@@ -64,6 +64,10 @@ def main():
         r"\b(türkiye|turkey|türk su|türkiye'de|dsi|devlet su işleri|barajı|barajları|baraj doluluk|iski|aski|izsu|gap projesi|güneydoğu anadolu|fırat nehri|dicle nehri|kızılırmak|yeşilırmak|meriç nehri|gediz nehri|büyük menderes|küçük menderes|sakarya nehri|van gölü|tuz gölü|beyşehir gölü|eğirdir gölü|atatürk barajı|keban barajı|karakaya barajı|tarım ve orman bakanlığı|su verimliliği seferberliği)\b",
         re.IGNORECASE
     )
+    FOREIGN_PAT = re.compile(
+        r"\b(colorado|utah|california|arizona|nevada|mississippi|salt lake|texas|australia|murray-darling|yangtze|yellow river|mekong|ganges|indus|danube|rhine)\b",
+        re.IGNORECASE
+    )
 
     # Persist translations, updated categories, Turkey flag and resolved images into SQLite
     for idx, it in enumerate(items):
@@ -74,10 +78,11 @@ def main():
 
         source = it.get("source_feed") or ""
         desc = it.get("description") or ""
+        full_text = title_tr + " " + it.get("title", "") + " " + desc + " " + source
 
         # Check if article genuinely relates to Turkey
         is_tr_scraped = bool(it.get("guid", "").startswith("tr_water:") or "🇹🇷" in source)
-        is_tr_match = bool(TURKEY_PAT.search(title_tr + " " + it.get("title", "") + " " + desc + " " + source))
+        is_tr_match = bool(TURKEY_PAT.search(full_text) and not FOREIGN_PAT.search(full_text))
         is_turkey = 1 if (is_tr_scraped or is_tr_match) else 0
         it["is_turkey"] = is_turkey
 
@@ -106,17 +111,23 @@ def main():
     print(f"[+] {len(items)} haberin görselleri çözümlendi ve veritabanına işlendi.")
 
     # Manşet Önceliği: Türkiye su haberleri HER ZAMAN en başta (manşette) yer alsın
-    def is_tr_article(x):
-        return bool(
-            x.get("is_turkey")
-            or x.get("category_tr") == "Türkiye"
-            or (x.get("guid") or "").startswith("tr_water:")
-            or "🇹🇷" in (x.get("source_feed") or "")
-        )
+    def turkey_headline_score(x):
+        guid = x.get("guid", "")
+        source = x.get("source_feed", "")
+        title = (x.get("title_tr", "") + " " + x.get("title", "")).lower()
+        score = 0
+        if guid.startswith("tr_water:") or "🇹🇷" in source:
+            score += 1000
+        elif bool(x.get("is_turkey") or x.get("category_tr") == "Türkiye"):
+            score += 100
+        if any(bad in title for bad in ["colorado", "utah", "california", "arizona", "nevada", "mississippi", "salt lake"]):
+            score -= 2000
+        return score
 
-    tr_articles = [it for it in items if is_tr_article(it)]
-    if tr_articles:
-        top_tr = tr_articles[0]
+    tr_candidates = [it for it in items if turkey_headline_score(it) > 0]
+    tr_sorted = sorted(tr_candidates, key=lambda x: (turkey_headline_score(x), x.get("pub_date_ts", 0)), reverse=True)
+    if tr_sorted:
+        top_tr = tr_sorted[0]
         items = [top_tr] + [it for it in items if it.get("guid") != top_tr.get("guid")]
         print(f"[+] Manşet Türkiye su haberi olarak belirlendi: {top_tr.get('title_tr')}")
 
