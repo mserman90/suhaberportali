@@ -255,13 +255,15 @@ class Storage:
             cursor.execute("SELECT COUNT(*) FROM items")
             return cursor.fetchone()[0]
 
-    def prune_items(self, max_items: int = 200):
+    def prune_items(self, max_items: int = 350):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 DELETE FROM items
-                WHERE guid NOT IN (
+                WHERE (is_academic != 1 AND is_turkey != 1 AND guid NOT LIKE 'academic:%' AND guid NOT LIKE 'tr_water:%')
+                  AND guid NOT IN (
                     SELECT guid FROM items
+                    WHERE (is_academic != 1 AND is_turkey != 1 AND guid NOT LIKE 'academic:%' AND guid NOT LIKE 'tr_water:%')
                     ORDER BY pub_date_ts DESC, first_seen_ts DESC
                     LIMIT ?
                 )

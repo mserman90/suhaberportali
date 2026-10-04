@@ -16,7 +16,7 @@ INOREADER_URL = os.getenv(
 FETCH_INTERVAL_MINUTES = int(os.getenv("FETCH_INTERVAL_MINUTES", "15"))
 
 # Maximum items to keep in history
-MAX_STORED_ITEMS = int(os.getenv("MAX_STORED_ITEMS", "200"))
+MAX_STORED_ITEMS = int(os.getenv("MAX_STORED_ITEMS", "350"))
 
 # SQLite database path
 DB_PATH = Path(os.getenv("DB_PATH", DATA_DIR / "feed_items.db"))

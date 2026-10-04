@@ -57,7 +57,7 @@ def main():
     storage.prune_items(config.MAX_STORED_ITEMS)
 
     # Retrieve all stored items
-    items = storage.get_items(limit=150)
+    items = storage.get_items(limit=200)
     print(f"[+] Toplam veritabanı kaydı: {len(items)}")
 
     from app.image_enricher import resolve_article_image
