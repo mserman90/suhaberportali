@@ -148,53 +148,6 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
 
     json_portal_data = json.dumps(portal_data, ensure_ascii=False)
 
-    # Dedicated Prioritized Turkey Water News Section
-    turkey_items = [it for it in portal_data if it.get("is_turkey")]
-    turkey_section_html = ""
-    if turkey_items:
-        turkey_cards_html = ""
-        # Manşetteki ilk Türkiye haberi ile kartların mükerrer olmaması için sonraki haberleri göster
-        section_display_items = turkey_items[1:5] if (len(turkey_items) > 1 and portal_data[0].get("is_turkey")) else turkey_items[:4]
-        for it in section_display_items:
-            t_date = html.escape(it['date'][:16] if it.get('date') else today_str)
-            t_source = html.escape(it['source'][:28])
-            turkey_cards_html += f"""
-            <div class="turkey-card" onclick="openArticleModal({it['id']})" data-slug="turkiye">
-                <div class="turkey-card-img" style="background-image: url('{html.escape(it['image'])}');">
-                    <span class="turkey-badge">🇹🇷 Yerel Gündem</span>
-                </div>
-                <div class="turkey-card-body">
-                    <div class="turkey-card-meta">
-                        <span>📅 {t_date}</span>
-                        <span>🏛️ {t_source}</span>
-                    </div>
-                    <h4 class="turkey-card-title">{html.escape(it['title_tr'])}</h4>
-                    <p class="turkey-card-excerpt">{html.escape(it['summary_tr'][:120])}...</p>
-                    <div class="turkey-card-footer">
-                        <span class="turkey-read-btn">Haberi İncele &rarr;</span>
-                    </div>
-                </div>
-            </div>
-            """
-
-        turkey_section_html = f"""
-        <section class="turkey-priority-section" id="turkeySection">
-            <div class="turkey-section-header">
-                <div class="turkey-header-title-wrap">
-                    <span class="turkey-flag-pill">🇹🇷 ÖNCELİKLİ YAYIN</span>
-                    <h3 class="turkey-section-title">TÜRKİYE SU GÜNDEMİ &amp; YEREL GELİŞMELER</h3>
-                </div>
-                <div class="turkey-header-right">
-                    <span class="turkey-section-subtitle">DSİ Projeleri &bull; Baraj Dolulukları &bull; Tarımsal Sulama &bull; Su Yönetimi</span>
-                    <button type="button" class="btn-turkey-all" onclick="filterCategory('turkiye')">Tüm Türkiye Haberleri ({len(turkey_items)}) &rarr;</button>
-                </div>
-            </div>
-            <div class="turkey-cards-grid">
-                {turkey_cards_html}
-            </div>
-        </section>
-        """
-
     # Secondary headline cards
     secondary_html = ""
     for it in portal_data[1:4]:
@@ -1666,9 +1619,6 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
         <!-- Gunluk Podcast Oynatici Karti -->
         {podcast_banner_html}
 
-        <!-- Turkiye Su Gundemi & Yerel Gelismeler Ozel Bolumu (Oncelikli Bolum) -->
-        {turkey_section_html}
-
         <!-- Sub Headlines (Surmansetler) -->
         <section class="sub-headlines-grid" id="subHeadlinesSection">
             {secondary_html}
@@ -1882,7 +1832,6 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
 
             const heroEl = document.getElementById('heroSection');
             const subEl = document.getElementById('subHeadlinesSection');
-            const turkeyEl = document.getElementById('turkeySection');
             const titleEl = document.getElementById('sectionTitle');
             const countEl = document.getElementById('sectionCount');
             const noResultsEl = document.getElementById('noResultsState');
@@ -1891,10 +1840,9 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             let visibleCount = 0;
 
             if (slug === 'all') {{
-                // Show Hero, Subheadlines, and Turkey Priority sections
+                // Show Hero and Subheadlines
                 if (heroEl) heroEl.style.display = '';
                 if (subEl) subEl.style.display = '';
-                if (turkeyEl) turkeyEl.style.display = '';
 
                 // Show only non-top cards in grid
                 allCards.forEach(card => {{
@@ -1912,10 +1860,8 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
                 if (noResultsEl) noResultsEl.style.display = 'none';
 
             }} else if (slug === 'turkiye') {{
-                // Türkiye category chosen: keep Turkey Priority section visible
                 if (heroEl) heroEl.style.display = 'none';
                 if (subEl) subEl.style.display = 'none';
-                if (turkeyEl) turkeyEl.style.display = '';
 
                 // Display all Turkey cards in grid
                 allCards.forEach(card => {{
@@ -1947,10 +1893,9 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
                 }}
 
             }} else {{
-                // Specific category chosen: hide hero, subheadlines and turkey section
+                // Specific category chosen: hide hero and subheadlines
                 if (heroEl) heroEl.style.display = 'none';
                 if (subEl) subEl.style.display = 'none';
-                if (turkeyEl) turkeyEl.style.display = 'none';
 
                 // Display all matching cards (including cards 0..3)
                 allCards.forEach(card => {{
@@ -1998,7 +1943,6 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
 
             const heroEl = document.getElementById('heroSection');
             const subEl = document.getElementById('subHeadlinesSection');
-            const turkeyEl = document.getElementById('turkeySection');
             const titleEl = document.getElementById('sectionTitle');
             const countEl = document.getElementById('sectionCount');
             const noResultsEl = document.getElementById('noResultsState');
@@ -2006,7 +1950,6 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
 
             if (heroEl) heroEl.style.display = 'none';
             if (subEl) subEl.style.display = 'none';
-            if (turkeyEl) turkeyEl.style.display = 'none';
 
             let matchCount = 0;
             allCards.forEach(card => {{
