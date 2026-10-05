@@ -50,6 +50,8 @@ def turkish_title_case(text: str) -> str:
             
         first = tr_upper(w[0]) if w else ""
         rest = tr_lower(w[1:]) if len(w) > 1 else ""
+        res.append(first + rest)
+
     res_str = " ".join(res)
     # Gazete küpürlerindeki yaygın OCR tarama hatalarını düzelt
     typo_map = {
@@ -231,10 +233,9 @@ def fetch_interpress_media_report(report_url: str) -> List[Dict[str, Any]]:
                     circulation = doc.get("sl", "-")
                     
                     desc = (
-                        f"Tarım ve Orman Bakanlığı Su Yönetimi Genel Müdürlüğü (SYGM) Günlük Medya Takip Raporu. "
-                        f"Yayın: {newspaper_name_clean} Gazetesi (Sayfa: {page_no}, Tiraj: {circulation}). "
-                        f"Konu Başlığı: {clean_title}. "
-                        f"Orijinal gazete küpürü ve interaktif haber detayları için bağlantıyı ziyaret ediniz."
+                        f"{newspaper_name_clean} gazetesinde (Sayfa {page_no}) yayımlanan güncel su ve çevre haberi: "
+                        f"\"{clean_title}\". "
+                        f"Haberin detayları ve orijinal gazete kupürü için kaynak bağlantısını inceleyebilirsiniz."
                     )
                     
                     item_dict = {
@@ -243,7 +244,7 @@ def fetch_interpress_media_report(report_url: str) -> List[Dict[str, Any]]:
                         "title_tr": clean_title,
                         "link": viewer_url,
                         "author": newspaper_name_clean,
-                        "source_feed": f"🏛️ SYGM Medya • {newspaper_name_clean}",
+                        "source_feed": f"📰 {newspaper_name_clean}",
                         "description": desc,
                         "summary_tr": desc,
                         "category_tr": category_tr,

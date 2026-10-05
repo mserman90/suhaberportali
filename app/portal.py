@@ -75,7 +75,7 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
         source = x.get("source_feed", "")
         title = (x.get("title_tr", "") + " " + x.get("title", "")).lower()
         score = 0
-        if guid.startswith("sygm:") or "SYGM" in source or "🏛️" in source:
+        if guid.startswith("sygm:"):
             score += 2000
         elif guid.startswith("tr_water:") or "🇹🇷" in source:
             score += 1000
@@ -206,7 +206,7 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             <div class="card-body">
                 <div class="card-meta">
                     <span>📅 {html.escape(it['date'][:16] if it.get('date') else today_str)}</span>
-                    <span>🏛️ {html.escape(it['source'][:32])}</span>
+                    <span>{html.escape(it['source'][:32])}</span>
                 </div>
                 <h3 class="card-title" onclick="openArticleModal({it['id']})">
                     {html.escape(it['title_tr'])}
@@ -259,7 +259,7 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
         h = portal_data[0]
         is_tr_hero = bool(h.get("is_turkey") or h.get("category") == "Türkiye")
         badge_title = "⭐ GÜNÜN MANŞETİ &bull; 🇹🇷 TÜRKİYE SU GÜNDEMİ" if is_tr_hero else f"⭐ GÜNÜN MANŞETİ &bull; {html.escape(h['category'])}"
-        hero_hint = "🏛️ DSİ &bull; Yerel Yönetimler &bull; Ulusal Su &amp; Sulama Gündemi" if is_tr_hero else "ScienceDirect / ASCE / IWMI Akademik Veritabanı Kaynağı"
+        hero_hint = "📰 Ulusal &amp; Yerel Basın &bull; Güncel Su Araştırmaları" if is_tr_hero else "ScienceDirect / ASCE / IWMI Akademik Veritabanı Kaynağı"
         hero_html = f"""
         <section class="main-headline-banner" id="heroSection" onclick="openArticleModal({h['id']})" data-slug="{h['slug']}">
             <div class="hero-image-col" style="background-image: url('{html.escape(h['image'])}');">
@@ -270,7 +270,7 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             <div class="hero-content-col">
                 <div class="hero-meta">
                     <span>📅 {html.escape(h['date'][:16] if h.get('date') else today_str)}</span> &bull; 
-                    <span>🏛️ {html.escape(h['source'][:40])}</span>
+                    <span>{html.escape(h['source'][:40])}</span>
                 </div>
                 <h2 class="hero-title">{html.escape(h['title_tr'])}</h2>
                 {f'<h4 class="hero-title-en">Orijinal Başlık: {html.escape(h["title_en"])}</h4>' if (h.get('title_en') and h['title_en'] != h['title_tr']) else ''}
@@ -1838,7 +1838,7 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
                 
                 <div class="modal-meta-bar">
                     <span id="modalDate">📅 Tarih</span>
-                    <span id="modalSource">🏛️ Kaynak</span>
+                    <span id="modalSource">📰 Kaynak</span>
                     <span id="modalAuthor">✍️ Yazar</span>
                 </div>
 
@@ -1895,8 +1895,8 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
                 titleEnEl.style.display = 'none';
             }}
             document.getElementById('modalDate').innerText = '📅 ' + it.date;
-            document.getElementById('modalSource').innerText = '🏛️ ' + it.source;
-            document.getElementById('modalAuthor').innerText = it.author ? '✍️ ' + it.author : '✍️ Akademik Kurul';
+            document.getElementById('modalSource').innerText = (it.source && (it.source.startsWith('📰') || it.source.startsWith('🎓') || it.source.startsWith('🇹🇷') || it.source.startsWith('📡'))) ? it.source : '📰 ' + (it.source || 'Basın');
+            document.getElementById('modalAuthor').innerText = it.author ? '✍️ ' + it.author : '✍️ Basın Bülteni';
             
             const imgEl = document.getElementById('modalImg');
             if (it.image) {{
