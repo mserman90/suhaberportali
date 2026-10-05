@@ -50,9 +50,18 @@ def turkish_title_case(text: str) -> str:
             
         first = tr_upper(w[0]) if w else ""
         rest = tr_lower(w[1:]) if len(w) > 1 else ""
-        res.append(first + rest)
-        
-    return " ".join(res)
+    res_str = " ".join(res)
+    # Gazete küpürlerindeki yaygın OCR tarama hatalarını düzelt
+    typo_map = {
+        "Toplamışı": "Toplantısı",
+        "Toplamisi": "Toplantısı",
+        "Dikli'ye": "Dikili'ye",
+        "Dikli ": "Dikili ",
+        "Osb'atık": "OSB Atık",
+    }
+    for old_t, new_t in typo_map.items():
+        res_str = res_str.replace(old_t, new_t)
+    return res_str
 
 
 def categorize_sygm_news(title: str, tags: List[str]) -> str:

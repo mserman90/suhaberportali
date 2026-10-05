@@ -75,7 +75,9 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
         source = x.get("source_feed", "")
         title = (x.get("title_tr", "") + " " + x.get("title", "")).lower()
         score = 0
-        if guid.startswith("tr_water:") or "🇹🇷" in source:
+        if guid.startswith("sygm:") or "SYGM" in source or "🏛️" in source:
+            score += 2000
+        elif guid.startswith("tr_water:") or "🇹🇷" in source:
             score += 1000
         elif bool(x.get("is_turkey") or x.get("category_tr") == "Türkiye"):
             score += 100
