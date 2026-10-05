@@ -8,6 +8,8 @@ data/*
 !data/feed_items.db
 !data/podcast_episodes.json
 !data/whatsapp_history.json
+!data/sygm_last_report_url.txt
+!data/sygm_sync_history.json
 *.sqlite
 *.sqlite3
 .env

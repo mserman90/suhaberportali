@@ -42,17 +42,14 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-      - name: Restore SQLite Database & Podcast Cache
+      - name: Restore Podcast Episodes Audio Cache
         uses: actions/cache@v4
         with:
           path: |
-            data/feed_items.db
-            data/podcast_episodes.json
-            data/whatsapp_history.json
             data/episodes/
-          key: feed-db-${{ runner.os }}-${{ github.run_id }}
+          key: podcast-episodes-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
-            feed-db-${{ runner.os }}-
+            podcast-episodes-${{ runner.os }}-
 
       - name: Generate Static RSS Feed & Portal
         env:
@@ -72,7 +69,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/feed_items.db data/podcast_episodes.json data/whatsapp_history.json || true
+          git add data/feed_items.db data/podcast_episodes.json data/whatsapp_history.json data/sygm_last_report_url.txt data/sygm_sync_history.json || true
           if ! git diff --cached --quiet; then
             git commit -m "chore(data): sync sqlite & podcast metadata [skip ci]"
             git pull --rebase origin main || true
