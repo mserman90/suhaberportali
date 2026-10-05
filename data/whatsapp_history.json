@@ -12,5 +12,12 @@
     "provider": "green_api",
     "title": "Su & Sulama Günlük Bülteni - 04.10.2026",
     "audio_url": "https://mserman90.github.io/suhaberportali/episodes/podcast_20261004.mp3"
+  },
+  "20261005": {
+    "sent_at": "2026-10-05T15:30:32.991912+00:00",
+    "status": "success",
+    "provider": "green_api",
+    "title": "Su & Sulama Günlük Bülteni - 05.10.2026",
+    "audio_url": "https://mserman90.github.io/suhaberportali/episodes/podcast_20261005.mp3"
   }
 }
