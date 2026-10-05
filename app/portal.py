@@ -431,13 +431,13 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             display: flex;
             justify-content: space-between;
             align-items: center;
-            flex-wrap: wrap;
             gap: 12px;
         }}
         .top-bar-left {{
             display: flex;
             align-items: center;
-            flex-wrap: wrap;
+            flex-shrink: 0;
+            white-space: nowrap;
             gap: 14px;
         }}
         .top-bar-left span, .top-bar-left a {{ margin-right: 0; }}
@@ -467,6 +467,7 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
         .top-bar-right {{
             display: flex;
             align-items: center;
+            flex-shrink: 0;
             gap: 10px;
         }}
         .top-search-box {{
@@ -567,24 +568,24 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             transition: border-color 0.25s ease;
         }}
 
-        /* Breaking News Ticker (Continuous Scrolling) */
-        .breaking-ticker-wrap {{
-            max-width: 1240px;
-            margin: 0 auto 16px;
-            padding: 0 16px;
-        }}
-        .breaking-ticker {{
+        /* Breaking News Ticker (Integrated in Top Bar) */
+        .top-bar-ticker {{
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            height: 28px;
             display: flex;
             align-items: center;
-            background: var(--ticker-bg);
-            border: 1px solid var(--border-line);
-            border-left: 4px solid var(--newspaper-blue);
-            border-radius: 6px;
-            overflow: hidden;
-            box-shadow: var(--shadow-subtle);
-            height: 42px;
-            position: relative;
-            transition: background-color 0.25s ease, border-color 0.25s ease;
+            margin: 0 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 20px;
+            padding: 0 10px;
+            transition: border-color 0.2s ease, background 0.2s ease;
+        }}
+        .top-bar-ticker:hover {{
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.22);
         }}
         .ticker-marquee {{
             flex: 1;
@@ -594,9 +595,8 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             height: 100%;
             display: flex;
             align-items: center;
-            padding-left: 14px;
-            mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 24px), transparent);
-            -webkit-mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 24px), transparent);
+            mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
+            -webkit-mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
         }}
         .ticker-track {{
             display: inline-flex;
@@ -605,7 +605,8 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             will-change: transform;
             animation: continuousTickerScroll 68s linear infinite;
         }}
-        .ticker-track:hover {{
+        .ticker-track:hover,
+        .top-bar-ticker:hover .ticker-track {{
             animation-play-state: paused;
             cursor: pointer;
         }}
@@ -621,41 +622,41 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            margin-right: 32px;
+            margin-right: 28px;
             cursor: pointer;
-            color: var(--ink-dark);
-            font-size: 13px;
+            color: var(--top-bar-color);
+            font-size: 12px;
             font-weight: 500;
             text-decoration: none;
             transition: color 0.15s ease;
         }}
         .ticker-item:hover {{
-            color: var(--accent-red);
+            color: #38bdf8;
         }}
         .ticker-item:hover .ticker-text {{
             text-decoration: underline;
         }}
         .ticker-icon {{
-            color: var(--accent-red);
-            font-size: 12px;
+            color: #f59e0b;
+            font-size: 11px;
         }}
         .ticker-cat-tag {{
-            font-size: 11px;
+            font-size: 10.5px;
             font-weight: 700;
-            color: var(--newspaper-blue);
-            opacity: 0.9;
+            color: #38bdf8;
+            opacity: 0.95;
         }}
         .ticker-cat-turkey {{
-            color: #c1121f !important;
+            color: #f87171 !important;
             font-weight: 800 !important;
         }}
         [data-theme="dark"] .ticker-cat-turkey {{
             color: #f87171 !important;
         }}
         .ticker-sep {{
-            margin-left: 20px;
-            color: var(--border-line);
-            font-size: 14px;
+            margin-left: 18px;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 12px;
         }}
 
 
@@ -1637,20 +1638,26 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             .main-headline-banner {{ grid-template-columns: 1fr; }}
             .newspaper-columns {{ grid-template-columns: 1fr; }}
         }}
-        @media (max-width: 768px) {{
+        @media (max-width: 860px) {{
             .top-bar-inner {{
                 flex-direction: column;
                 align-items: stretch;
-                gap: 10px;
+                gap: 8px;
             }}
             .top-bar-left {{
                 justify-content: space-between;
                 width: 100%;
                 font-size: 11.5px;
             }}
+            .top-bar-ticker {{
+                margin: 2px 0;
+                width: 100%;
+                order: 2;
+            }}
             .top-bar-right {{
                 justify-content: space-between;
                 width: 100%;
+                order: 3;
             }}
             .top-search-box {{
                 flex: 1;
@@ -1670,6 +1677,13 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
                 <span>🗓️ {today_str}</span>
                 <a href="https://www.wri.org/applications/aqueduct/water-risk-atlas/" target="_blank" rel="noopener noreferrer" class="top-stat-link" title="Hesaplama Kaynağı: WRI (World Resources Institute) Aqueduct Su Riski ve Stresi Atlası">💧 Türkiye Su Stresi: %64.2 <span class="ext-link-icon">↗</span></a>
             </div>
+            <div class="top-bar-ticker">
+                <div class="ticker-marquee" title="Akışı durdurmak için imleci üzerine getirebilirsiniz">
+                    <div class="ticker-track" id="tickerTrack">
+                        {ticker_track_content}
+                    </div>
+                </div>
+            </div>
             <div class="top-bar-right">
                 <div class="top-search-box">
                     <input type="text" id="searchInput" placeholder="🔍 Başlıklarda ara..." oninput="filterSearch()" aria-label="Haberlerde ara">
@@ -1688,17 +1702,6 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
         <div class="newspaper-sub-logo">Türkiye ve Dünya Su, Sulama ve Çevre Araştırmaları Gazetesi</div>
         <div class="masthead-divider"></div>
     </header>
-
-    <!-- Breaking News Ticker -->
-    <div class="breaking-ticker-wrap">
-        <div class="breaking-ticker">
-            <div class="ticker-marquee" title="Akışı durdurmak için imleci üzerine getirebilirsiniz">
-                <div class="ticker-track" id="tickerTrack">
-                    {ticker_track_content}
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Category Nav Bar -->
     <nav class="category-nav-bar" id="categoryNavBar">
