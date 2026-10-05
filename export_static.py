@@ -50,10 +50,20 @@ def main():
     academic_items = scrape_academic_water_publications(limit_per_query=12, max_total=40)
     print(f"[+] Çekilen güncel akademik yayın sayısı: {len(academic_items)}")
 
+    print("[*] SYGM Medya Raporu (Su Yönetimi Genel Müdürlüğü) kontrol ediliyor...")
+    try:
+        from app.sygm_scraper import scrape_sygm_daily_report
+        sygm_items = scrape_sygm_daily_report()
+        print(f"[+] Çekilen güncel SYGM medya raporu haberi sayısı: {len(sygm_items)}")
+    except Exception as sygm_err:
+        print(f"[!] SYGM medya raporu tarama hatası: {sygm_err}")
+        sygm_items = []
+
     storage = Storage(config.DB_PATH)
     storage.save_items(raw_items)
     storage.save_items(turkey_items)
     storage.save_items(academic_items)
+    storage.save_items(sygm_items)
     storage.prune_items(config.MAX_STORED_ITEMS)
 
     # Retrieve all stored items
@@ -90,7 +100,7 @@ def main():
         it["is_academic"] = is_academic
 
         # Check if article genuinely relates to Turkey
-        is_tr_scraped = bool(it.get("guid", "").startswith("tr_water:") or "🇹🇷" in source)
+        is_tr_scraped = bool(it.get("guid", "").startswith("tr_water:") or it.get("guid", "").startswith("sygm:") or "🇹🇷" in source or "SYGM" in source)
         is_tr_match = bool(TURKEY_PAT.search(full_text) and not FOREIGN_PAT.search(full_text))
         is_turkey = 1 if (is_tr_scraped or is_tr_match) else 0
         it["is_turkey"] = is_turkey
@@ -126,7 +136,9 @@ def main():
         source = x.get("source_feed", "")
         title = (x.get("title_tr", "") + " " + x.get("title", "")).lower()
         score = 0
-        if guid.startswith("tr_water:") or "🇹🇷" in source:
+        if guid.startswith("sygm:") or "SYGM" in source:
+            score += 1500
+        elif guid.startswith("tr_water:") or "🇹🇷" in source:
             score += 1000
         elif bool(x.get("is_turkey") or x.get("category_tr") == "Türkiye"):
             score += 100
