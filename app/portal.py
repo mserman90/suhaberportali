@@ -421,7 +421,7 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             background: var(--top-bar-bg);
             color: var(--top-bar-color);
             font-size: 12px;
-            padding: 7px 16px;
+            padding: 8px 16px;
             border-bottom: 1px solid var(--border-line);
             transition: background-color 0.25s ease;
         }}
@@ -432,9 +432,15 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 8px;
+            gap: 12px;
         }}
-        .top-bar-left span, .top-bar-left a {{ margin-right: 14px; }}
+        .top-bar-left {{
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 14px;
+        }}
+        .top-bar-left span, .top-bar-left a {{ margin-right: 0; }}
         .top-stat-link {{
             color: var(--top-bar-color);
             text-decoration: none;
@@ -457,6 +463,64 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
         .top-stat-link:hover .ext-link-icon {{
             transform: translate(1px, -1px);
             opacity: 1;
+        }}
+        .top-bar-right {{
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }}
+        .top-search-box {{
+            display: flex;
+            align-items: center;
+            position: relative;
+        }}
+        .top-search-box input {{
+            padding: 5px 12px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            border-radius: 20px;
+            font-size: 12px;
+            width: 190px;
+            transition: all 0.25s ease;
+        }}
+        .top-search-box input::placeholder {{
+            color: rgba(255, 255, 255, 0.65);
+        }}
+        .top-search-box input:focus {{
+            outline: none;
+            width: 240px;
+            background: rgba(255, 255, 255, 0.16);
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+        }}
+        .top-theme-toggle-btn {{
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            padding: 5px 11px;
+            border-radius: 20px;
+            font-size: 13.5px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            user-select: none;
+            line-height: 1;
+        }}
+        .top-theme-toggle-btn:hover {{
+            background: rgba(255, 255, 255, 0.22);
+            border-color: rgba(255, 255, 255, 0.4);
+            transform: translateY(-1px);
+        }}
+        [data-theme="dark"] .top-search-box input {{
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.15);
+        }}
+        [data-theme="dark"] .top-theme-toggle-btn {{
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.18);
         }}
 
 
@@ -608,7 +672,7 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             padding: 8px 16px;
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: center;
             gap: 16px;
             flex-wrap: wrap;
             transition: background-color 0.25s ease, border-color 0.25s ease;
@@ -617,6 +681,7 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
+            justify-content: center;
         }}
         .cat-btn {{
             background: var(--cat-btn-bg);
@@ -1572,6 +1637,28 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             .main-headline-banner {{ grid-template-columns: 1fr; }}
             .newspaper-columns {{ grid-template-columns: 1fr; }}
         }}
+        @media (max-width: 768px) {{
+            .top-bar-inner {{
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }}
+            .top-bar-left {{
+                justify-content: space-between;
+                width: 100%;
+                font-size: 11.5px;
+            }}
+            .top-bar-right {{
+                justify-content: space-between;
+                width: 100%;
+            }}
+            .top-search-box {{
+                flex: 1;
+            }}
+            .top-search-box input {{
+                width: 100% !important;
+            }}
+        }}
     </style>
 </head>
 <body>
@@ -1582,6 +1669,14 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             <div class="top-bar-left">
                 <span>🗓️ {today_str}</span>
                 <a href="https://www.wri.org/applications/aqueduct/water-risk-atlas/" target="_blank" rel="noopener noreferrer" class="top-stat-link" title="Hesaplama Kaynağı: WRI (World Resources Institute) Aqueduct Su Riski ve Stresi Atlası">💧 Türkiye Su Stresi: %64.2 <span class="ext-link-icon">↗</span></a>
+            </div>
+            <div class="top-bar-right">
+                <div class="top-search-box">
+                    <input type="text" id="searchInput" placeholder="🔍 Başlıklarda ara..." oninput="filterSearch()" aria-label="Haberlerde ara">
+                </div>
+                <button type="button" id="themeToggleBtn" class="top-theme-toggle-btn" onclick="toggleTheme()" title="Gece / Gündüz Temasını Değiştir" aria-label="Temayı Değiştir">
+                    <span class="theme-icon">🌙</span>
+                </button>
             </div>
         </div>
     </div>
@@ -1616,14 +1711,6 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
                 <button type="button" class="cat-btn" data-slug="kaynak" onclick="filterCategory('kaynak')">💧 Su Kaynakları</button>
                 <button type="button" class="cat-btn" data-slug="iklim" onclick="filterCategory('iklim')">🌍 İklim &amp; Kuraklık</button>
                 <button type="button" class="cat-btn" data-slug="politika" onclick="filterCategory('politika')">⚖️ Su Politikaları</button>
-            </div>
-            <div class="nav-controls">
-                <div class="search-box">
-                    <input type="text" id="searchInput" placeholder="🔍 Başlıklarda ara..." oninput="filterSearch()">
-                </div>
-                <button type="button" id="themeToggleBtnNav" class="theme-toggle-btn-nav" onclick="toggleTheme()" title="Gece / Gündüz Temasını Değiştir" aria-label="Temayı Değiştir">
-                    <span class="theme-icon">🌙</span>
-                </button>
             </div>
         </div>
     </nav>
@@ -2006,10 +2093,10 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             const icon = isDark ? '☀️' : '🌙';
             const tooltip = isDark ? 'Gündüz Moduna Geç' : 'Gece Moduna Geç';
 
-            const btnNav = document.getElementById('themeToggleBtnNav');
-            if (btnNav) {{
-                btnNav.innerHTML = `<span class="theme-icon">${{icon}}</span>`;
-                btnNav.title = tooltip;
+            const btn = document.getElementById('themeToggleBtn') || document.getElementById('themeToggleBtnNav');
+            if (btn) {{
+                btn.innerHTML = `<span class="theme-icon">${{icon}}</span>`;
+                btn.title = tooltip;
             }}
         }}
 
