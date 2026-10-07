@@ -1,5 +1,16 @@
 [
   {
+    "guid": "suhaber-20261007",
+    "title": "Su & Sulama Günlük Bülteni - 07.10.2026",
+    "description": "07.10.2026 tarihli güncel su, tarımsal sulama ve hidroloji araştırmalarının sesli özeti.",
+    "filename": "podcast_20261007.mp3",
+    "audio_url": "https://mserman90.github.io/suhaberportali/episodes/podcast_20261007.mp3",
+    "file_size_bytes": 946944,
+    "rfc822_date": "Wed, 07 Oct 2026 14:10:14 GMT",
+    "date_key": "20261007",
+    "duration": "03:45"
+  },
+  {
     "guid": "suhaber-20261006",
     "title": "Su & Sulama Günlük Bülteni - 06.10.2026",
     "description": "06.10.2026 tarihli güncel su, tarımsal sulama ve hidroloji araştırmalarının sesli özeti.",
