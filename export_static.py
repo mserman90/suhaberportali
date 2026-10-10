@@ -131,27 +131,50 @@ def main():
     print(f"[+] {len(items)} haberin görselleri çözümlendi ve veritabanına işlendi.")
 
     # Manşet Önceliği: Türkiye su haberleri HER ZAMAN en başta (manşette) yer alsın
-    def turkey_headline_score(x):
+    # Güncellik (recency) esastır: Yeni haberler güncellik azalışı (time-decay) sayesinde eski haberleri geride bırakır.
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+
+    def turkey_headline_sort_key(x):
         guid = x.get("guid", "")
         source = x.get("source_feed", "")
         title = (x.get("title_tr", "") + " " + x.get("title", "")).lower()
-        score = 0
-        if guid.startswith("sygm:"):
-            score += 2000
-        elif guid.startswith("tr_water:") or "🇹🇷" in source:
-            score += 1000
-        elif bool(x.get("is_turkey") or x.get("category_tr") == "Türkiye"):
-            score += 100
-        if any(bad in title for bad in ["colorado", "utah", "california", "arizona", "nevada", "mississippi", "salt lake"]):
-            score -= 2000
-        return score
 
-    tr_candidates = [it for it in items if turkey_headline_score(it) > 0]
-    tr_sorted = sorted(tr_candidates, key=lambda x: (turkey_headline_score(x), x.get("pub_date_ts", 0)), reverse=True)
+        # Alakasız yabancı göl/nehir haberlerini ele
+        if any(bad in title for bad in ["colorado", "utah", "california", "arizona", "nevada", "mississippi", "salt lake"]):
+            return (-999999999, 0)
+
+        is_tr = bool(
+            guid.startswith("tr_water:")
+            or guid.startswith("sygm:")
+            or "🇹🇷" in source
+            or x.get("is_turkey")
+            or x.get("category_tr") == "Türkiye"
+        )
+        if not is_tr:
+            return (-999999999, 0)
+
+        pub_ts = int(x.get("pub_date_ts") or 0)
+        # Gün farkı hesabı (time decay)
+        age_days = max(0.0, (now_ts - pub_ts) / 86400.0) if pub_ts > 0 else 5.0
+
+        quality = 1000.0
+        # Temel su & kuraklık kavramları için ek puan
+        if any(k in title for k in ["baraj", "doluluk", "sulama", "su yönetimi", "kuraklık", "dsi", "su krizi", "su verimliliği", "göl", "akarsu"]):
+            quality += 300.0
+        # Su kesintisi / rutin ihale / personel haberlerinin manşete çıkmasını engelle
+        if any(k in title for k in ["kesinti", "ihale", "personel", "kadro", "voleybol", "futbol"]):
+            quality -= 800.0
+
+        # Her geçen gün için 500 puan düşür (Eski haberler bugünkü yeni haberin önüne geçemez)
+        final_score = quality - (age_days * 500.0)
+        return (final_score, pub_ts)
+
+    tr_candidates = [it for it in items if turkey_headline_sort_key(it)[0] > -500000]
+    tr_sorted = sorted(tr_candidates, key=turkey_headline_sort_key, reverse=True)
     if tr_sorted:
         top_tr = tr_sorted[0]
         items = [top_tr] + [it for it in items if it.get("guid") != top_tr.get("guid")]
-        print(f"[+] Manşet Türkiye su haberi olarak belirlendi: {top_tr.get('title_tr')}")
+        print(f"[+] Manşet Türkiye su haberi olarak belirlendi: {top_tr.get('title_tr')} (Tarih: {top_tr.get('pub_date')})")
 
     public_url = config.PUBLIC_BASE_URL or "https://mserman90.github.io/suhaberportali"
     rss_self = f"{public_url}/rss.xml"

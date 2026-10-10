@@ -262,13 +262,27 @@ def scrape_inoreader(url: str, timeout: int = 15) -> Dict[str, Any]:
     }
 
 
-def scrape_turkey_water_news(limit: int = 25) -> List[Dict[str, Any]]:
+def scrape_turkey_water_news(limit: int = 40) -> List[Dict[str, Any]]:
     """
-    Fetches real-time Turkish water news from Google News RSS feed:
-    DSİ projeleri, tarımsal sulama, baraj doluluk oranları, su yönetimi.
+    Fetches real-time, newly published Turkish water news from Google News RSS feeds (within last 7 days):
+    DSİ projeleri, tarımsal sulama otomasyonu, baraj doluluk oranları, su yönetimi, kuraklık ve havza kararları.
     """
     import xml.etree.ElementTree as ET
-    url = "https://news.google.com/rss/search?q=tar%C4%B1msal+sulama+OR+baraj+doluluk+OR+DS%C4%B0+su+OR+%22su+y%C3%B6netimi%22+OR+%22su+verimlili%C4%9Fi%22&hl=tr&gl=TR&ceid=TR:tr"
+    import urllib.parse
+
+    queries = [
+        # 1. Barajlar ve Doluluk Oranları (En güncel baraj seviyeleri)
+        '("baraj doluluk" OR "baraj doluluk oranları" OR "barajların doluluk" OR "baraj su seviyesi") when:7d',
+        # 2. DSİ ve Sulama Yatırımları
+        '(DSİ OR "Devlet Su İşleri") AND (sulama OR baraj OR kuraklık OR "su projesi" OR "su yönetimi") when:7d',
+        # 3. Tarımsal Sulama ve Otomasyon
+        '("tarımsal sulama" OR "sulama otomasyonu" OR "sulama kanalı" OR "damla sulama") when:7d',
+        # 4. Su Yönetimi, Su Verimliliği ve Kurul Kararları
+        '("su yönetimi" OR "su verimliliği" OR "havza su kurulu" OR "su krizi" OR "su tasarrufu") when:7d',
+        # 5. Göller, Nehirler, Yeraltı Suyu ve Kuraklık
+        '(kuraklık OR "yeraltı suyu" OR "göl su seviyesi") AND (su OR dsi OR göl OR nehir) when:7d',
+    ]
+
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -276,12 +290,20 @@ def scrape_turkey_water_news(limit: int = 25) -> List[Dict[str, Any]]:
             "Chrome/128.0.0.0 Safari/537.36"
         )
     }
+
     items: List[Dict[str, Any]] = []
-    try:
-        resp = requests.get(url, headers=headers, timeout=12)
-        if resp.status_code == 200:
+    seen_titles = set()
+    now_dt = datetime.now(timezone.utc)
+
+    for q in queries:
+        if len(items) >= limit:
+            break
+        url = f"https://news.google.com/rss/search?q={urllib.parse.quote(q)}&hl=tr&gl=TR&ceid=TR:tr"
+        try:
+            resp = requests.get(url, headers=headers, timeout=12)
+            if resp.status_code != 200:
+                continue
             root = ET.fromstring(resp.text)
-            now_dt = datetime.now(timezone.utc)
             for it in root.findall(".//item"):
                 if len(items) >= limit:
                     break
@@ -294,11 +316,35 @@ def scrape_turkey_water_news(limit: int = 25) -> List[Dict[str, Any]]:
                 source_name = source_el.text if source_el is not None else "Türkiye Su Bülteni"
 
                 # Filter out social media platforms
-                combined_src = (link + " " + source_name).lower()
-                if any(bad in combined_src for bad in ["instagram.com", "youtube.com", "tiktok.com", "facebook.com", "twitter.com", "x.com", "linkedin.com", "pinterest.com"]):
+                combined_src = (link + " " + source_name + " " + raw_title).lower()
+                if any(bad in combined_src for bad in [
+                    "instagram.com", "youtube.com", "tiktok.com", "facebook.com",
+                    "twitter.com", "x.com", "linkedin.com", "pinterest.com"
+                ]):
                     continue
 
-                # Parse date
+                # Filter out sports, job vacancies, tenders, and routine power/water cuts
+                if any(bad in combined_src for bad in [
+                    "voleybol", "futbol", "basketbol", "turnuva", "maraton", "koşu",
+                    "işçi alımı", "personel alımı", "memur alımı", "iş ilanı", "mülakat",
+                    "ihale metni", "ihale ilanı", "su kesintisi", "sular ne zaman gelecek", "su kesintileri"
+                ]):
+                    continue
+
+                # Clean title (Google News appends "- SourceName" at the end)
+                clean_title = raw_title
+                if " - " in raw_title:
+                    clean_title = raw_title.rsplit(" - ", 1)[0].strip()
+
+                if len(clean_title) < 15:
+                    continue
+
+                norm_key = re.sub(r'[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ]', '', clean_title.lower())
+                if norm_key in seen_titles:
+                    continue
+                seen_titles.add(norm_key)
+
+                # Parse publication date
                 pub_ts = int(now_dt.timestamp())
                 pub_rfc = email.utils.format_datetime(now_dt)
                 if pub_str:
@@ -308,11 +354,6 @@ def scrape_turkey_water_news(limit: int = 25) -> List[Dict[str, Any]]:
                         pub_rfc = email.utils.format_datetime(dt_parsed)
                     except Exception:
                         pass
-
-                # Clean title (Google News appends "- SourceName" at the end)
-                clean_title = raw_title
-                if " - " in raw_title:
-                    clean_title = raw_title.rsplit(" - ", 1)[0].strip()
 
                 desc_el = it.find("description")
                 raw_desc = desc_el.text if desc_el is not None else ""
@@ -334,8 +375,63 @@ def scrape_turkey_water_news(limit: int = 25) -> List[Dict[str, Any]]:
                     "pub_date_ts": pub_ts,
                     "raw_date_str": pub_str,
                 })
-    except Exception as e:
-        logger.warning("Turkey water news scrape failed: %s", e)
+        except Exception as e:
+            logger.warning("Turkey water news scrape failed for query [%s]: %s", q, e)
+
+    # Fallback to broader query if less than 10 items found
+    if len(items) < 10:
+        fallback_url = "https://news.google.com/rss/search?q=tar%C4%B1msal+sulama+OR+baraj+doluluk+OR+DS%C4%B0+su+OR+%22su+y%C3%B6netimi%22+OR+%22su+verimlili%C4%9Fi%22&hl=tr&gl=TR&ceid=TR:tr"
+        try:
+            resp = requests.get(fallback_url, headers=headers, timeout=12)
+            if resp.status_code == 200:
+                root = ET.fromstring(resp.text)
+                for it in root.findall(".//item"):
+                    if len(items) >= limit:
+                        break
+                    raw_title = it.find("title").text if it.find("title") is not None else ""
+                    clean_title = raw_title.rsplit(" - ", 1)[0].strip() if " - " in raw_title else raw_title
+                    norm_key = re.sub(r'[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ]', '', clean_title.lower())
+                    if norm_key in seen_titles:
+                        continue
+                    seen_titles.add(norm_key)
+                    link = it.find("link").text if it.find("link") is not None else ""
+                    pub_str = it.find("pubDate").text if it.find("pubDate") is not None else ""
+                    guid = it.find("guid").text if it.find("guid") is not None else link
+                    source_el = it.find("source")
+                    source_name = source_el.text if source_el is not None else "Türkiye Su Bülteni"
+                    
+                    pub_ts = int(now_dt.timestamp())
+                    pub_rfc = email.utils.format_datetime(now_dt)
+                    if pub_str:
+                        try:
+                            dt_parsed = email.utils.parsedate_to_datetime(pub_str)
+                            pub_ts = int(dt_parsed.timestamp())
+                            pub_rfc = email.utils.format_datetime(dt_parsed)
+                        except Exception:
+                            pass
+
+                    desc_el = it.find("description")
+                    raw_desc = desc_el.text if desc_el is not None else ""
+                    clean_desc = BeautifulSoup(raw_desc, "html.parser").get_text(" ", strip=True) if raw_desc else clean_title
+
+                    items.append({
+                        "guid": f"tr_water:{guid}",
+                        "title": clean_title,
+                        "title_tr": clean_title,
+                        "link": link,
+                        "author": source_name,
+                        "source_feed": f"🇹🇷 {source_name}",
+                        "description": clean_desc,
+                        "summary_tr": clean_desc,
+                        "category_tr": "Türkiye",
+                        "is_turkey": 1,
+                        "image_url": "",
+                        "pub_date": pub_rfc,
+                        "pub_date_ts": pub_ts,
+                        "raw_date_str": pub_str,
+                    })
+        except Exception:
+            pass
 
     return items
 
