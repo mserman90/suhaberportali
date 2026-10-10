@@ -2,6 +2,7 @@ import html
 import re
 from datetime import datetime, timezone
 from typing import List, Dict, Any
+from app.quotes import get_daily_water_quote
 
 def clean_html_tags(text: str) -> str:
     if not text:
@@ -11,6 +12,12 @@ def clean_html_tags(text: str) -> str:
 
 def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: str, rss_url: str, atom_url: str, json_url: str, podcast_info: Dict[str, Any] = None) -> str:
     today_str = datetime.now(timezone.utc).strftime("%d.%m.%Y")
+    
+    # Günün Sözü (Su Yönetimi Öğütleri)
+    daily_quote = get_daily_water_quote()
+    quote_text = html.escape(daily_quote.get("quote", ""))
+    quote_author = html.escape(daily_quote.get("author", "Su Yönetimi Rehberi"))
+    quote_cat = html.escape(daily_quote.get("category", "Su Yönetimi"))
     
     # Podcast HTML Hazırlığı
     podcast_banner_html = ""
@@ -1783,13 +1790,13 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
             <!-- Right Sidebar: Editorial & Infographics -->
             <aside class="newspaper-sidebar">
                 
-                <!-- Editorial Box -->
+                <!-- Günün Sözü (Su Yönetimi Öğütleri) -->
                 <div class="sidebar-card">
-                    <h4 class="sidebar-title">Günün Başyazısı</h4>
+                    <h4 class="sidebar-title">Günün Sözü</h4>
                     <div class="editorial-quote">
-                        "Tarımsal sulamada yapılacak her yüzde 10'luk verimlilik artışı, metropollerin yıllık içme suyu ihtiyacının tamamını karşılayabilecek ölçektedir. Akıllı sensörler ve damla sulama bir tercih değil, milli bir zorunluluktur."
+                        "{quote_text}"
                     </div>
-                    <div class="editorial-author">&mdash; Su Haber Bülteni Editör Masası</div>
+                    <div class="editorial-author">&mdash; {quote_author} &bull; <span style="font-weight:normal; color:var(--ink-light);">{quote_cat}</span></div>
                 </div>
 
                 <!-- Water Stats Infographic -->
