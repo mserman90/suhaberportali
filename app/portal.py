@@ -19,61 +19,29 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
     quote_author = html.escape(daily_quote.get("author", "Su Yönetimi Rehberi"))
     quote_cat = html.escape(daily_quote.get("category", "Su Yönetimi"))
     
-    # Podcast HTML Hazırlığı
-    podcast_banner_html = ""
-    podcast_sidebar_html = ""
+    # Manşet Haberi Altında Gösterilecek Podcast Barı
+    podcast_hero_html = ""
     if podcast_info and podcast_info.get("latest_episode"):
         ep = podcast_info["latest_episode"]
         audio_url = ep.get("audio_url") or podcast_info.get("latest_audio_url")
         podcast_rss = podcast_info.get("podcast_rss_url") or f"{rss_url.rsplit('/', 1)[0]}/podcast.xml"
-        ep_title = html.escape(ep.get("title", "Günlük Sesli Bülten"))
-        ep_desc = html.escape(ep.get("description", ""))
-        
-        podcast_banner_html = f"""
-        <section class="podcast-banner-card">
-            <div class="podcast-banner-header">
-                <div class="podcast-badge-group">
-                    <span class="podcast-pill">🎙️ GÜNLÜK SESLİ BÜLTEN &bull; PODCAST</span>
-                    <span class="podcast-time-pill">⏰ Her Gün 10:00'da Yayında</span>
-                </div>
-                <div class="podcast-rss-quick">
-                    <span class="podcast-rss-label">Sabit Podcast RSS:</span>
-                    <code id="topPodcastRss">{podcast_rss}</code>
-                    <button class="btn-copy-podcast-sm" onclick="navigator.clipboard.writeText('{podcast_rss}'); alert('Sabit Podcast RSS linki kopyalandı!');">📋 Kopyala</button>
-                </div>
-            </div>
-            <div class="podcast-banner-body">
-                <div class="podcast-info-col">
-                    <h3 class="podcast-title">{ep_title}</h3>
-                    <p class="podcast-desc">{ep_desc}</p>
-                </div>
-                <div class="podcast-player-col">
-                    <audio controls preload="none" class="portal-audio-player">
-                        <source src="{audio_url}" type="audio/mpeg">
-                        Tarayıcınız ses etiketini desteklemiyor.
-                    </audio>
-                    <div class="podcast-player-footer">
-                        <a href="{audio_url}" download class="link-download-ep">📥 Bölümü İndir (MP3)</a>
-                        <a href="{podcast_rss}" target="_blank" class="link-rss-ep">📡 Podcast XML Akışı &rarr;</a>
+        podcast_hero_html = f"""
+                <div class="hero-podcast-bar" onclick="event.stopPropagation();">
+                    <div class="hero-podcast-label">
+                        <span class="hero-podcast-badge">🎙️ SESLİ MANŞET</span>
+                        <span>Haberin Sesli Özeti (Podcast):</span>
                     </div>
+                    <audio controls preload="none" class="hero-podcast-player">
+                        <source src="{audio_url}" type="audio/mpeg">
+                        Tarayıcınız ses oynatmayı desteklemiyor.
+                    </audio>
+                    <a href="{audio_url}" target="_blank" download class="hero-podcast-btn" title="Manşet Ses Dosyasını İndir">
+                        ▶️ Dinle / İndir
+                    </a>
+                    <a href="{podcast_rss}" target="_blank" class="hero-podcast-rss-link" title="Podcast RSS Akışı">
+                        📡 Podcast RSS
+                    </a>
                 </div>
-            </div>
-        </section>
-        """
-
-        podcast_sidebar_html = f"""
-        <div class="sidebar-card sidebar-podcast-box">
-            <h4 style="color:#0284c7; font-size:15px; margin-bottom:6px;">🎙️ Sabit Podcast Yayını</h4>
-            <p style="font-size:12px; color:var(--ink-muted); margin-bottom:8px;">Apple Podcasts, Spotify veya Pocket Casts uygulamanıza ekleyin:</p>
-            <div class="rss-url-display" id="sidebarPodcastUrl">{podcast_rss}</div>
-            <button class="btn-copy-rss" style="background:#0284c7;" onclick="navigator.clipboard.writeText('{podcast_rss}'); alert('Sabit Podcast RSS linki kopyalandı!');">
-                📋 Podcast RSS Linkini Kopyala
-            </button>
-            <div style="margin-top:10px; font-size:11px; text-align:center;">
-                <a href="{audio_url}" target="_blank" style="color:#0284c7; font-weight:bold;">▶️ Son Bölümü Dinle</a> &bull; 
-                <a href="{podcast_rss}" target="_blank" style="color:#0284c7; font-weight:bold;">XML Akışı</a>
-            </div>
-        </div>
         """
     
     # Manşet Önceliği: Türkiye su haberlerini her zaman en başa (manşete) al
@@ -305,6 +273,7 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
                 <h2 class="hero-title">{html.escape(h['title_tr'])}</h2>
                 {f'<h4 class="hero-title-en">Orijinal Başlık: {html.escape(h["title_en"])}</h4>' if (h.get('title_en') and h['title_en'] != h['title_tr']) else ''}
                 <p class="hero-summary">{html.escape(h['summary_tr'][:320])}...</p>
+                {podcast_hero_html}
                 <div class="hero-footer">
                     <button class="btn-hero-read">Tam Haberi ve Analizi Oku &rarr;</button>
                     <span class="hero-hint">{hero_hint}</span>
@@ -936,6 +905,83 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
         .hero-hint {{
             font-size: 11.5px;
             color: var(--ink-light);
+        }}
+
+        /* Headline Podcast Link Bar (Manşet Haberi Altı) */
+        .hero-podcast-bar {{
+            background: rgba(14, 165, 233, 0.08);
+            border: 1px solid rgba(14, 165, 233, 0.25);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }}
+        [data-theme="dark"] .hero-podcast-bar {{
+            background: rgba(14, 165, 233, 0.12);
+            border-color: rgba(56, 189, 248, 0.3);
+        }}
+        .hero-podcast-bar:hover {{
+            border-color: rgba(14, 165, 233, 0.5);
+        }}
+        .hero-podcast-label {{
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12.5px;
+            font-weight: 700;
+            color: var(--newspaper-navy);
+            letter-spacing: 0.3px;
+        }}
+        [data-theme="dark"] .hero-podcast-label {{
+            color: #38bdf8;
+        }}
+        .hero-podcast-badge {{
+            background: #0284c7;
+            color: white;
+            font-size: 10px;
+            font-weight: 800;
+            padding: 3px 8px;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+        }}
+        .hero-podcast-player {{
+            flex: 1;
+            min-width: 200px;
+            height: 36px;
+            outline: none;
+        }}
+        .hero-podcast-btn {{
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: #0284c7;
+            color: white !important;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 7px 14px;
+            border-radius: 4px;
+            text-decoration: none;
+            transition: background 0.15s ease;
+            white-space: nowrap;
+        }}
+        .hero-podcast-btn:hover {{
+            background: #0369a1;
+            text-decoration: none;
+        }}
+        .hero-podcast-rss-link {{
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--ink-muted);
+            text-decoration: none;
+            white-space: nowrap;
+        }}
+        .hero-podcast-rss-link:hover {{
+            color: #0284c7;
+            text-decoration: underline;
         }}
 
         /* Turkey Water News Dedicated Priority Section */
@@ -1756,8 +1802,6 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
         <!-- Hero / Gunun Manseti -->
         {hero_html}
 
-        <!-- Gunluk Podcast Oynatici Karti -->
-        {podcast_banner_html}
 
         <!-- Sub Headlines (Surmansetler) -->
         <section class="sub-headlines-grid" id="subHeadlinesSection">
@@ -1820,8 +1864,6 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
                     </div>
                 </div>
 
-                <!-- Sabit Podcast Akisi (Sidebar) -->
-                {podcast_sidebar_html}
 
                 <!-- Live RSS Subscription Card -->
                 <div class="sidebar-card sidebar-rss-box">

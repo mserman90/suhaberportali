@@ -18,6 +18,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Any
 
+import requests
+from bs4 import BeautifulSoup
+
 try:
     import edge_tts
 except ImportError:
@@ -34,40 +37,83 @@ def clean_for_speech(text: str) -> str:
     text = re.sub(r'\s+', ' ', text).strip()
     return text
 
+def fetch_full_text_from_link(url: str, timeout: int = 8) -> str:
+    """Manşet haberinin web sayfasından tam metnini ayıklar."""
+    if not url or not url.startswith("http"):
+        return ""
+    if "news.google.com" in url or "interpress.com" in url:
+        return ""
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8"
+        }
+        resp = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True)
+        if resp.status_code == 200:
+            soup = BeautifulSoup(resp.text, "html.parser")
+            for tag in soup(["script", "style", "nav", "header", "footer", "aside", "form"]):
+                tag.decompose()
+            article_container = (
+                soup.find("article")
+                or soup.find(class_=re.compile(r'(article-body|news-content|content-text|detail-content|haber-metni|entry-content)', re.I))
+                or soup.find("main")
+            )
+            root = article_container if article_container else soup
+            paras = [p.get_text(" ", strip=True) for p in root.find_all("p")]
+            valid = [p for p in paras if len(p) > 40 and not any(bad in p.lower() for bad in ["çerez", "cookie", "abone ol", "reklam", "telif hakkı", "bültenimize"])]
+            if valid:
+                return "\n\n".join(valid[:10])
+    except Exception:
+        pass
+    return ""
+
 def build_podcast_script(items: List[Dict[str, Any]], date_str: str) -> str:
-    """Haber listesinden doğal konuşma dilinde bir podcast bülteni senaryosu oluşturur."""
-    top_items = items[:5]
-    if not top_items:
-        return "Merhaba! Su Haber Bülteni'ne hoş geldiniz. Bugün için henüz yeni bir makale kaydı bulunmuyor."
-
-    script_parts = [
-        f"Merhaba! Su Haber Bülteni'nin {date_str} tarihli günlük sesli podcast yayınına hoş geldiniz.",
-        "Bugün öne çıkan tarımsal sulama, su kaynakları ve hidroloji araştırmalarını sizler için derledik.",
-        "İşte bugünün dikkat çeken gelişmeleri:"
-    ]
-
-    for idx, it in enumerate(top_items, 1):
-        title = it.get("title_tr") or it.get("title", "")
-        summary = it.get("summary_tr") or it.get("description", "")
-        category = it.get("category_tr", "Su Kaynakları")
-        source = it.get("source_feed", "Bilimsel Araştırma")
-
-        clean_title = clean_for_speech(title)
-        clean_sum = clean_for_speech(summary)
-        # Özet çok uzunsa ilk 2 cümleyi al
-        sentences = [s.strip() for s in clean_sum.split('.') if len(s.strip()) > 10]
-        short_summary = ". ".join(sentences[:2]) if sentences else clean_sum[:250]
-        if short_summary and not short_summary.endswith('.'):
-            short_summary += '.'
-
-        script_parts.append(
-            f"{idx}. haberimiz {category} alanında, {source} kaynağından: {clean_title}. {short_summary}"
+    """
+    Sadece günün manşet haberi için haberin tam içeriğiyle podcast bülteni senaryosu oluşturur.
+    """
+    if not items:
+        return (
+            f"Merhaba. Su ve Sulama Günlük Bülteni'nin {date_str} tarihli yayınına hoş geldiniz. "
+            "Bugün için bültenimizde kayıtlı yeni bir haber bulunmamaktadır. Suyla ve sağlıkla kalın."
         )
 
-    script_parts.append(
-        "Bugünkü sesli bültenimizin sonuna geldik. Tüm bu araştırmaların tam metinlerine ve detaylı analizlerine sitemizden ulaşabilirsiniz. "
-        "Yarın sabah yeni bültenimizde görüşmek üzere, suyla ve sağlıkla kalın."
-    )
+    # Yalnızca manşet haberi (items[0])
+    headline = items[0]
+    title = headline.get("title_tr") or headline.get("title", "")
+    source = headline.get("source_feed") or headline.get("author") or "Türkiye Su Gündemi"
+    source = source.replace("🇹🇷", "").strip()
+    link = headline.get("link", "")
+
+    # Haberin tam metnini çöz: önce web sayfasından tam metin, yoksa zengin açıklama / özet
+    full_text = ""
+    if link:
+        full_text = fetch_full_text_from_link(link)
+
+    if not full_text or len(full_text) < 100:
+        desc = headline.get("description") or ""
+        sum_tr = headline.get("summary_tr") or ""
+        clean_d = BeautifulSoup(desc, "html.parser").get_text(" ", strip=True) if desc else ""
+        clean_s = BeautifulSoup(sum_tr, "html.parser").get_text(" ", strip=True) if sum_tr else ""
+        
+        parts = []
+        if clean_d and len(clean_d) > 20:
+            parts.append(clean_d)
+        if clean_s and clean_s != clean_d and len(clean_s) > 20:
+            parts.append(clean_s)
+        full_text = "\n\n".join(parts) if parts else title
+
+    clean_title = clean_for_speech(title)
+    clean_body = clean_for_speech(full_text)
+    clean_source = clean_for_speech(source)
+
+    script_parts = [
+        f"Merhaba. Su ve Sulama Günlük Bülteni'nin {date_str} tarihli sesli bültenine hoş geldiniz.",
+        f"Günün manşet haberini tüm detaylarıyla aktarıyoruz. Başlığımız: {clean_title}.",
+        f"Haberin kaynağı: {clean_source}.",
+        f"Haberin tam içeriği ve ayrıntıları şu şekildedir: {clean_body}",
+        "Günün manşet haberinin sesli aktarımını tamamladık. Tüm Türkiye ve dünya su yönetimi haberlerine, tarımsal sulama teknolojilerine ve bilimsel araştırmalara su haber bülteni web portalımızdan ulaşabilirsiniz. Bir sonraki bültende görüşmek üzere, suyla ve sağlıkla kalın."
+    ]
 
     return "\n\n".join(script_parts)
 
@@ -192,14 +238,25 @@ def generate_daily_podcast(
     filepath_latest_data = data_episodes_dir / "podcast_latest.mp3"
     filepath_latest_dist = episodes_dir / "podcast_latest.mp3"
 
+    headline = items[0] if items else {}
+    headline_title = headline.get("title_tr") or headline.get("title") or "Günün Manşeti"
+    clean_headline_title = clean_for_speech(headline_title)
+
     # 3. Ses dosyasını kontrol et veya gerekiyorsa sentezle
-    if filepath_data.exists() and filepath_data.stat().st_size > 1000:
-        print(f"[*] Bugünün podcast ses dosyası önbellekte mevcut: {filename_dated} ({filepath_data.stat().st_size} bayt)")
+    # Eğer önbellekteki bölüm bugünün manşet başlığıyla uyuşmuyorsa manşet için yeniden üret
+    needs_regen = False
+    if episodes and episodes[0].get("date_key") == today_key:
+        cached_title = episodes[0].get("title", "")
+        if clean_headline_title[:30].lower() not in cached_title.lower():
+            needs_regen = True
+
+    if filepath_data.exists() and filepath_data.stat().st_size > 1000 and not needs_regen:
+        print(f"[*] Bugünün manşet podcast ses dosyası önbellekte mevcut: {filename_dated} ({filepath_data.stat().st_size} bayt)")
         shutil.copy2(filepath_data, filepath_dist)
         shutil.copy2(filepath_data, filepath_latest_dist)
         shutil.copy2(filepath_data, filepath_latest_data)
     elif enable_generation:
-        print(f"[*] Günlük Podcast metni hazırlanıyor ({date_display})...")
+        print(f"[*] Günün Manşeti sesli bülten metni hazırlanıyor ({date_display}): {clean_headline_title[:50]}...")
         script = build_podcast_script(items, date_display)
         print(f"[*] Edge-TTS ile yeni ses dosyası oluşturuluyor: {filename_dated}...")
         try:
@@ -208,7 +265,7 @@ def generate_daily_podcast(
                 shutil.copy2(filepath_data, filepath_dist)
                 shutil.copy2(filepath_data, filepath_latest_dist)
                 shutil.copy2(filepath_data, filepath_latest_data)
-                print(f"[+] Podcast ses dosyası başarıyla üretildi: {filepath_data.stat().st_size} bayt")
+                print(f"[+] Manşet podcast ses dosyası başarıyla üretildi: {filepath_data.stat().st_size} bayt")
         except Exception as e:
             print(f"[!] Podcast ses sentezi hatası: {e}")
     else:
@@ -223,14 +280,14 @@ def generate_daily_podcast(
     if file_size > 1000:
         new_ep = {
             "guid": f"suhaber-{today_key}",
-            "title": f"Su & Sulama Günlük Bülteni - {date_display}",
-            "description": f"{date_display} tarihli güncel su, tarımsal sulama ve hidroloji araştırmalarının sesli özeti.",
+            "title": f"Günün Manşeti: {clean_headline_title[:75]}",
+            "description": f"{date_display} tarihli Günün Manşeti haberinin sesli bülteni: {clean_headline_title}. Kaynak: {headline.get('source_feed', '')}",
             "filename": filename_dated,
             "audio_url": audio_public_url,
             "file_size_bytes": file_size,
             "rfc822_date": rfc822_date,
             "date_key": today_key,
-            "duration": "03:45"
+            "duration": "03:15"
         }
         # Listeyi güncelle (en yeni en başta)
         episodes = [ep for ep in episodes if ep.get("date_key") != today_key]
