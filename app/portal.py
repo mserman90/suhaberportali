@@ -70,25 +70,48 @@ def generate_newspaper_portal_html(items: List[Dict[str, Any]], last_updated: st
         """
     
     # Manşet Önceliği: Türkiye su haberlerini her zaman en başa (manşete) al
-    def turkey_headline_score(x):
+    # Güncellik (recency) esastır: Yeni haberler güncellik azalışı (time-decay) sayesinde eski haberleri geride bırakır.
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+
+    def turkey_headline_sort_key(x):
         guid = x.get("guid", "")
         source = x.get("source_feed", "")
         title = (x.get("title_tr", "") + " " + x.get("title", "")).lower()
-        score = 0
-        if guid.startswith("sygm:"):
-            score += 2000
-        elif guid.startswith("tr_water:") or "🇹🇷" in source:
-            score += 1000
-        elif bool(x.get("is_turkey") or x.get("category_tr") == "Türkiye"):
-            score += 100
+
+        # Alakasız yabancı göl/nehir haberlerini ele
         if any(bad in title for bad in ["colorado", "utah", "california", "arizona", "nevada", "mississippi", "salt lake"]):
-            score -= 2000
-        return score
+            return (-999999999, 0)
+
+        is_tr = bool(
+            guid.startswith("tr_water:")
+            or guid.startswith("sygm:")
+            or "🇹🇷" in source
+            or x.get("is_turkey")
+            or x.get("category_tr") == "Türkiye"
+        )
+        if not is_tr:
+            return (-999999999, 0)
+
+        pub_ts = int(x.get("pub_date_ts") or 0)
+        # Gün farkı hesabı (time decay)
+        age_days = max(0.0, (now_ts - pub_ts) / 86400.0) if pub_ts > 0 else 5.0
+
+        quality = 1000.0
+        # Temel su & kuraklık kavramları için ek puan
+        if any(k in title for k in ["baraj", "doluluk", "sulama", "su yönetimi", "kuraklık", "dsi", "su krizi", "su verimliliği", "göl", "akarsu"]):
+            quality += 300.0
+        # Su kesintisi / rutin ihale / personel haberlerinin manşete çıkmasını engelle
+        if any(k in title for k in ["kesinti", "ihale", "personel", "kadro", "voleybol", "futbol"]):
+            quality -= 800.0
+
+        # Her geçen gün için 500 puan düşür (Eski haberler bugünkü yeni haberin önüne geçemez)
+        final_score = quality - (age_days * 500.0)
+        return (final_score, pub_ts)
 
     # Sort items by date
     raw_sorted = sorted(items, key=lambda x: x.get("pub_date_ts", 0), reverse=True)
-    tr_candidates = [it for it in raw_sorted if turkey_headline_score(it) > 0]
-    tr_sorted = sorted(tr_candidates, key=lambda x: (turkey_headline_score(x), x.get("pub_date_ts", 0)), reverse=True)
+    tr_candidates = [it for it in raw_sorted if turkey_headline_sort_key(it)[0] > -500000]
+    tr_sorted = sorted(tr_candidates, key=turkey_headline_sort_key, reverse=True)
     if tr_sorted:
         turkey_hero = tr_sorted[0]
         items_sorted = [turkey_hero] + [it for it in raw_sorted if it.get("guid") != turkey_hero.get("guid")]
